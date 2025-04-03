@@ -1,6 +1,6 @@
 # Playbook to call multiple roles to configure systems
 - name: Configure systems
-  hosts: Ubuntuclients
+  hosts: 10.0.16.254 
   become: yes
 
   tasks:
