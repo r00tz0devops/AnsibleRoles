@@ -1,12 +1,12 @@
 # Playbook to call multiple roles to configure systems
 - name: Configure systems
-  hosts: 10.0.16.254 
+  hosts: Ubuntuclients
   become: true
 
   tasks:
 
 - name: Call Roles
-  hosts: 10.0.16.254
+  hosts: buntuclients
   become: ture
   roles:
    #- hostname
