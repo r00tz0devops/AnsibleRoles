@@ -6,7 +6,7 @@
   tasks:
 
 - name: Call Roles
-  hosts: Ubuntuclients 
+  hosts: 10.0.16.254 
   roles:
    #- hostname
    #- firewalld
