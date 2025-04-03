@@ -1,4 +1,7 @@
 [Ubuntuclients]
 
 10.0.16.254 
-10.0.16.251
+10.0.16.251 
+
+[Ubuntuclients:vars]
+ansible_python_interpreter=/usr/bin/python3
