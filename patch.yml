@@ -1,10 +1,9 @@
----
+---    
 - hosts: '{{ hostname }}'
   become: yes
   become_user: root
   tasks:
-   - name: Update all packages to their latest version
-  ansible.builtin.apt:
-    name: "*"
-    state: latest
-        
+      - name: Update all packages on a Debian/Ubuntu
+        apt:
+            update_cache: yes
+            upgrade: dist
