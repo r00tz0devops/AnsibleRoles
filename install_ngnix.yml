@@ -1,0 +1,35 @@
+---
+- name: Install NGINX on Ubuntu 24.04
+  hosts: '{{ hostname }}'
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+
+    - name: Install NGINX
+      apt:
+        name: nginx
+        state: present
+
+    - name: Ensure NGINX is running and enabled at boot
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Allow HTTP and HTTPS traffic in the firewall
+      ufw:
+        rule: allow
+        name: 'Nginx Full'
+
+    - name: Check NGINX status
+      command: systemctl status nginx
+      register: nginx_status
+      changed_when: false
+
+    - name: Output NGINX status
+      debug:
+        msg: "{{ nginx_status.stdout }}"
