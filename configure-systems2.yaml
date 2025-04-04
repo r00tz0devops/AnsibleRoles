@@ -1,12 +1,12 @@
 # Playbook to call multiple roles to configure systems
 - name: Configure systems
-  hosts: 10.0.16.254 
+  hosts: 10.0.90.101
   become: true
 
   tasks:
 
 - name: Call Roles
-  hosts: 10.0.16.254 
+  hosts: 10.0.90.101
   become: ture
   roles:
    #- hostname
