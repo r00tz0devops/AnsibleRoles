@@ -1,0 +1,36 @@
+---
+- name: Update Ubuntu Packages and Send Email Notification
+  hosts: '{{ hostname }}'
+  become: yes
+  become_user: root
+  tasks:
+    - name: Update package list and upgrade packages
+      shell: |
+        apt update -y && apt list --upgradable > /tmp/upgradable_packages.txt && apt upgrade -y | tee /tmp/upgrade_log.txt
+      register: upgrade_result
+
+    - name: Get the user who executed the playbook
+      command: whoami
+      register: executing_user
+      changed_when: false
+
+    - name: Capture the updated packages
+      command: cat /tmp/upgradable_packages.txt
+      register: package_list
+      changed_when: false
+
+    - name: Send email notification
+      mail:
+        host: smtp-relay.domain.com  # Change this to your SMTP relay
+        port: 587  # Change if needed
+        username: "{{ vault_smtp_user }}"  # Stored in Ansible Vault
+        password: "{{ vault_smtp_password }}"  # Stored in Ansible Vault
+        to: "updates@domain.com"
+        from: "ansible@domain.com"
+        subject: "Ubuntu Update Report - {{ ansible_hostname }}"
+        body: |
+          Update completed on: {{ ansible_date_time.date }}
+          Executed by: {{ executing_user.stdout }}
+          Updated packages:
+          {{ package_list.stdout }}
+      delegate_to: localhost
