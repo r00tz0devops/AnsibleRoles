@@ -1,99 +1,101 @@
 ---
-- name: Verify high-priority vulnerable packages and update
+- name: Verify and patch vulnerable packages (with JSON logging)
   hosts: '{{ hostname }}'
   become: yes
   become_method: sudo
   vars:
-    log_file: "/var/log/ansible/security_update_log.txt"
+    log_file: "/var/log/ansible/security_update_log.json"
     high_priority_cves:
-      - package: "openssl"
-        cve: "CVE-2021-3450"
-        version: "1.1.1k-1ubuntu3.1"
-      - package: "libcurl3"
-        cve: "CVE-2020-8231"
-        version: "7.68.0-1ubuntu2.6"
-      # Add more CVE entries as needed
+      - package: "linux-image-generic"
+        cve: "CVE-2024-53144"
+        version: "5.4.0-200.220"
+      - package: "xserver-xorg-core"
+        cve: "CVE-2025-26595"
+        version: "2:1.20.13-1ubuntu1.3"
+      - package: "openjdk-11-jre-headless"
+        cve: "CVE-2025-21502"
+        version: "11.0.26+4-1ubuntu1~24.10"
 
   tasks:
-    - name: Ensure log file exists
-      file:
-        path: "{{ log_file }}"
-        state: touch
+    - name: Ensure JSON log file exists
+      copy:
+        content: "[]"
+        dest: "{{ log_file }}"
+        force: no
         mode: "0644"
 
-    - name: Update apt package index
+    - name: Update APT package index
       apt:
         update_cache: yes
 
-    - name: Check installed packages
-      command: "dpkg-query -W -f='${Package} ${Version}\n'"
-      register: installed_packages
+    - name: Gather installed packages
+      command: dpkg-query -W -f='${Package} ${Version}\n'
+      register: installed_packages_raw
 
-    - name: Log installed packages
-      blockinfile:
-        path: "{{ log_file }}"
-        create: yes
-        block: |
-          === Installed Packages ({{ ansible_date_time.iso8601 }}) ===
-          {{ installed_packages.stdout }}
+    - name: Parse installed packages into a dictionary
+      set_fact:
+        installed_packages: >-
+          {{
+            dict(installed_packages_raw.stdout_lines | map('split', ' ') | map('slice', [0, 2]) | list)
+          }}
 
-    - name: Compare installed packages with known vulnerable packages
+    - name: Identify vulnerable installed packages
       set_fact:
         vulnerable_packages: >-
           {{
-            high_priority_cves
-            | selectattr('package', 'in', installed_packages.stdout_lines | map('split', ' ') | map('first') | list)
-            | list
+            high_priority_cves | selectattr('package', 'in', installed_packages.keys()) | list
           }}
 
-    - name: Install updates for vulnerable packages
+    - name: Patch vulnerable packages
       apt:
         name: "{{ item.package }}"
         state: latest
       loop: "{{ vulnerable_packages }}"
-      register: update_result
+      register: updated_vulnerable
       when: vulnerable_packages | length > 0
 
-    - name: Log the updates applied
-      blockinfile:
-        path: "{{ log_file }}"
-        create: yes
-        block: |
-          === Applied Updates ({{ ansible_date_time.iso8601 }}) ===
-          {% for result in update_result.results %}
-          Package: {{ result.item.package }}
-          Changed: {{ result.changed }}
-          Msg: {{ result.msg | default('N/A') }}
-          {% endfor %}
-      when: update_result is defined
+    - name: Record update results to JSON
+      copy:
+        content: >-
+          {{
+            (
+              lookup('file', log_file) | from_json
+            ) + [
+              {
+                "timestamp": ansible_date_time.iso8601,
+                "action": "vulnerable_patch",
+                "host": inventory_hostname,
+                "patched": updated_vulnerable.results | map(attribute='item.package'),
+                "cves": vulnerable_packages,
+                "changed": updated_vulnerable.changed
+              }
+            ] | to_nice_json
+          }}
+        dest: "{{ log_file }}"
+      when: vulnerable_packages | length > 0
 
-    - name: Ensure the system is fully updated if no CVE matches
+    - name: Perform full upgrade if no specific CVEs matched
       apt:
         upgrade: dist
         update_cache: yes
       register: full_upgrade_result
       when: vulnerable_packages | length == 0
 
-    - name: Log the full upgrade result
-      blockinfile:
-        path: "{{ log_file }}"
-        create: yes
-        block: |
-          === Full Upgrade Output ({{ ansible_date_time.iso8601 }}) ===
-          Changed: {{ full_upgrade_result.changed }}
-          Packages: {{ full_upgrade_result.packages | default('N/A') }}
-          Msg: {{ full_upgrade_result.msg | default('N/A') }}
+    - name: Record full upgrade to JSON
+      copy:
+        content: >-
+          {{
+            (
+              lookup('file', log_file) | from_json
+            ) + [
+              {
+                "timestamp": ansible_date_time.iso8601,
+                "action": "full_upgrade",
+                "host": inventory_hostname,
+                "changed": full_upgrade_result.changed,
+                "msg": full_upgrade_result.msg | default("N/A")
+              }
+            ] | to_nice_json
+          }}
+        dest: "{{ log_file }}"
       when: full_upgrade_result is defined
-
-    - name: Log raw upgrade result (optional debug)
-      blockinfile:
-        path: "{{ log_file }}"
-        create: yes
-        block: |
-          === Raw Full Upgrade Result JSON ({{ ansible_date_time.iso8601 }}) ===
-          {{ full_upgrade_result | to_nice_json }}
-      when: full_upgrade_result is defined
-
-    - name: Output completion message
-      debug:
-        msg: "Vulnerable packages checked and updated. Logs at {{ log_file }}"
