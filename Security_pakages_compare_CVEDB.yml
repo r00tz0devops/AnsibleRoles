@@ -32,18 +32,25 @@
       command: dpkg-query -W -f='${Package} ${Version}\n'
       register: installed_packages_raw
 
-    - name: Parse installed packages into a dictionary
+    - name: Convert installed packages to a dictionary
       set_fact:
         installed_packages: >-
           {{
-            dict(installed_packages_raw.stdout_lines | map('split', ' ') | map('slice', [0, 2]) | list)
+            dict(
+              installed_packages_raw.stdout_lines
+              | map('split', ' ')
+              | map('first')
+              | zip(installed_packages_raw.stdout_lines | map('split', ' ') | map('last'))
+            )
           }}
 
     - name: Identify vulnerable installed packages
       set_fact:
         vulnerable_packages: >-
           {{
-            high_priority_cves | selectattr('package', 'in', installed_packages.keys()) | list
+            high_priority_cves
+            | selectattr('package', 'in', installed_packages.keys())
+            | list
           }}
 
     - name: Patch vulnerable packages
@@ -54,7 +61,7 @@
       register: updated_vulnerable
       when: vulnerable_packages | length > 0
 
-    - name: Record update results to JSON
+    - name: Record patch results to JSON log
       copy:
         content: >-
           {{
@@ -74,14 +81,14 @@
         dest: "{{ log_file }}"
       when: vulnerable_packages | length > 0
 
-    - name: Perform full upgrade if no specific CVEs matched
+    - name: Perform full system upgrade if no CVEs matched
       apt:
         upgrade: dist
         update_cache: yes
       register: full_upgrade_result
       when: vulnerable_packages | length == 0
 
-    - name: Record full upgrade to JSON
+    - name: Record full upgrade result to JSON log
       copy:
         content: >-
           {{
@@ -99,3 +106,7 @@
           }}
         dest: "{{ log_file }}"
       when: full_upgrade_result is defined
+
+    - name: Output completion message
+      debug:
+        msg: "Patch process completed. Logs available at {{ log_file }}"
