@@ -12,7 +12,7 @@
       - package: "libcurl3"
         cve: "CVE-2020-8231"
         version: "7.68.0-1ubuntu2.6"
-      # Add more CVEs as needed
+      # Add more CVE entries as needed
 
   tasks:
     - name: Ensure log file exists
@@ -54,14 +54,18 @@
       register: update_result
       when: vulnerable_packages | length > 0
 
-    # - name: Log the updates applied
-    #   blockinfile:
-    #     path: "{{ log_file }}"
-    #     create: yes
-    #     block: |
-    #       === Applied Updates ({{ ansible_date_time.iso8601 }}) ===
-    #       {{ update_result.results | map(attribute='stdout') | join('\n') }}
-    #   when: update_result is defined
+    - name: Log the updates applied
+      blockinfile:
+        path: "{{ log_file }}"
+        create: yes
+        block: |
+          === Applied Updates ({{ ansible_date_time.iso8601 }}) ===
+          {% for result in update_result.results %}
+          Package: {{ result.item.package }}
+          Changed: {{ result.changed }}
+          Msg: {{ result.msg | default('N/A') }}
+          {% endfor %}
+      when: update_result is defined
 
     - name: Ensure the system is fully updated if no CVE matches
       apt:
@@ -76,9 +80,20 @@
         create: yes
         block: |
           === Full Upgrade Output ({{ ansible_date_time.iso8601 }}) ===
-          {{ full_upgrade_result.stdout }}
+          Changed: {{ full_upgrade_result.changed }}
+          Packages: {{ full_upgrade_result.packages | default('N/A') }}
+          Msg: {{ full_upgrade_result.msg | default('N/A') }}
+      when: full_upgrade_result is defined
+
+    - name: Log raw upgrade result (optional debug)
+      blockinfile:
+        path: "{{ log_file }}"
+        create: yes
+        block: |
+          === Raw Full Upgrade Result JSON ({{ ansible_date_time.iso8601 }}) ===
+          {{ full_upgrade_result | to_nice_json }}
       when: full_upgrade_result is defined
 
     - name: Output completion message
       debug:
-        msg: "Vulnerable packages have been checked and updated. Log is available at {{ log_file }}"
+        msg: "Vulnerable packages checked and updated. Logs at {{ log_file }}"
