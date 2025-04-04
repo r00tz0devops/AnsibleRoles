@@ -1,26 +1,26 @@
 ---
-- name: Compare CVEs from CVE Details API with installed packages on Ubuntu
+- name: Compare Ubuntu CVEs and patch vulnerable packages
   hosts: '{{ hostname }}'
   become: yes
   become_method: sudo
   vars:
     log_file: "/var/log/ansible/security_update_log.json"
-    cve_api_url: "https://www.cvedetails.com/json-feed.php"  # CVE Details API URL
-    cve_database_file: "/var/log/ansible/cve_details_cve_data.json"
-  
-  tasks:
-    - name: Ensure JSON log file exists
-      copy:
-        content: "[]"
-        dest: "{{ log_file }}"
-        force: no
-        mode: "0644"
+    cve_temp_file: "/tmp/ubuntu_cves.html"
+    cve_url: "https://ubuntu.com/security/cves?priority=critical"
 
-    - name: Update APT package index
+  tasks:
+    - name: Ensure log file exists
+      copy:
+        dest: "{{ log_file }}"
+        content: "[]"
+        force: no
+        mode: '0644'
+
+    - name: Update apt cache
       apt:
         update_cache: yes
 
-    - name: Gather installed packages
+    - name: Get list of installed packages
       command: dpkg-query -W -f='${Package} ${Version}\n'
       register: installed_packages_raw
 
@@ -36,62 +36,52 @@
             )
           }}
 
-    - name: Fetch CVE data from CVE Details API
-      uri:
-        url: "{{ cve_api_url }}"
-        method: GET
-        return_content: yes
-        headers:
-          Content-Type: application/json
-      register: cve_data
+    - name: Download Ubuntu CVE HTML page (Critical)
+      get_url:
+        url: "{{ cve_url }}"
+        dest: "{{ cve_temp_file }}"
 
-    - name: Parse CVE data
-      set_fact:
-        cve_list: "{{ cve_data.json }}"
+    - name: Parse CVE and package names from HTML
+      shell: |
+        cat {{ cve_temp_file }} | grep -oP 'package/\K[^"]+' | sort -u
+      register: vulnerable_pkg_names
 
-    - name: Identify vulnerable installed packages
+    - name: Find installed vulnerable packages
       set_fact:
         vulnerable_packages: >-
           {{
-            cve_list
-            | selectattr('cve.CVE_data_meta.ID', 'in', installed_packages.keys())
-            | selectattr('cve.CVE_data_meta.ID', 'defined')
-            | map(attribute='cve')
-            | map(attribute='CVE_data_meta')
-            | map(attribute='ID')
+            vulnerable_pkg_names.stdout_lines
+            | select('in', installed_packages.keys())
             | list
           }}
 
-    - name: Log vulnerable packages
-      debug:
-        msg: "Vulnerable packages: {{ vulnerable_packages }}"
-
-    - name: Patch vulnerable packages
+    - name: Upgrade vulnerable packages
       apt:
         name: "{{ item }}"
         state: latest
       loop: "{{ vulnerable_packages }}"
       when: vulnerable_packages | length > 0
 
-    - name: Read existing remote log file
+    - name: Read existing JSON log
       slurp:
         src: "{{ log_file }}"
       register: raw_log
 
-    - name: Set parsed log content
+    - name: Decode existing JSON log
       set_fact:
         existing_log: "{{ raw_log.content | b64decode | from_json }}"
 
-    - name: Record patch results to JSON log
+    - name: Save vulnerable patch log
       copy:
         content: >-
           {{
             (existing_log + [
               {
                 "timestamp": ansible_date_time.iso8601,
-                "action": "vulnerable_patch",
                 "host": inventory_hostname,
-                "patched": vulnerable_packages,
+                "action": "patch_critical_cve_packages",
+                "patched_packages": vulnerable_packages,
+                "source": "ubuntu.com/security/cves?priority=critical",
                 "changed": true
               }
             ]) | to_nice_json
@@ -99,30 +89,29 @@
         dest: "{{ log_file }}"
       when: vulnerable_packages | length > 0
 
-    - name: Perform full upgrade if no CVEs matched
+    - name: Run dist-upgrade if no CVE packages matched
       apt:
         upgrade: dist
-        update_cache: yes
       register: full_upgrade_result
       when: vulnerable_packages | length == 0
 
-    - name: Record full upgrade result to JSON log
+    - name: Log full upgrade result
       copy:
         content: >-
           {{
             (existing_log + [
               {
                 "timestamp": ansible_date_time.iso8601,
-                "action": "full_upgrade",
                 "host": inventory_hostname,
+                "action": "full_upgrade_fallback",
                 "changed": full_upgrade_result.changed,
-                "msg": full_upgrade_result.msg | default("N/A")
+                "msg": full_upgrade_result.msg | default("No message")
               }
             ]) | to_nice_json
           }}
         dest: "{{ log_file }}"
       when: full_upgrade_result is defined
 
-    - name: Output completion message
+    - name: Done
       debug:
-        msg: "Patch process completed. Logs available at {{ log_file }}"
+        msg: "CVEs checked and patched. Logs saved to {{ log_file }}"
