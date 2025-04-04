@@ -1,85 +1,42 @@
 ---
-- name: Ubuntu 24 Security Patching with Logs and Secure Email
+- name: Apply security updates on Ubuntu 24.04
   hosts: '{{ hostname }}'
   become: yes
   become_user: root
-  vars_files:
-    - secrets.yml  # Load encrypted Mailjet credentials
-
-  # vars:
-  #   log_file: "/var/log/ansible_security_patch.log"
-  #   mailjet_smtp_host: "in-v3.mailjet.com"
-  #   mailjet_smtp_port: 587
-  #   mailjet_smtp_user: "your-mailjet-username"
-  #   email_recipient: "admin@example.com"
-  #   email_sender: "ansible@example.com"
+  vars:
+    log_file: "/var/log/ansible/security_updates.log"
 
   tasks:
     - name: Ensure log file exists
-      ansible.builtin.file:
+      file:
         path: "{{ log_file }}"
         state: touch
         mode: "0644"
 
     - name: Update package cache
-      ansible.builtin.apt:
+      apt:
         update_cache: yes
-      register: update_cache
-      changed_when: false
-      ignore_errors: yes
 
-    - name: Log package cache update result
-      ansible.builtin.lineinfile:
-        path: "{{ log_file }}"
-        line: "{{ update_cache.stdout | default('No output') }}"
-        create: yes
+    - name: Install security updates
+      apt:
+        upgrade: security
+      register: update_result
 
-    - name: Check available security updates
-      ansible.builtin.command: unattended-upgrade --dry-run -d
-      register: security_updates
-      changed_when: false
-      ignore_errors: yes
+    - name: Log update results
+      copy:
+        content: "{{ update_result.stdout }}"
+        dest: "{{ log_file }}"
+      when: update_result.stdout is defined
 
-    - name: Log available security updates
-      ansible.builtin.lineinfile:
-        path: "{{ log_file }}"
-        line: "Available Security Updates:\n{{ security_updates.stdout }}"
-        create: yes
-
-    - name: Apply security updates
-      ansible.builtin.apt:
-        upgrade: full
-        autoclean: yes
-      register: apt_upgrade
-      ignore_errors: yes
-
-    - name: Log security updates applied
-      ansible.builtin.lineinfile:
-        path: "{{ log_file }}"
-        line: "Security Updates Applied:\n{{ apt_upgrade.stdout | default('No updates applied') }}"
-        create: yes
-
-    - name: Verify security updates after patching
-      ansible.builtin.command: unattended-upgrade --dry-run -d
-      register: security_updates_after
-      changed_when: false
-      ignore_errors: yes
-
-    - name: Log remaining security updates
-      ansible.builtin.lineinfile:
-        path: "{{ log_file }}"
-        line: "Remaining Security Updates:\n{{ security_updates_after.stdout }}"
-        create: yes
-
-    # - name: Send logs via email using Mailjet SMTP
-    #   community.general.mail:
-    #     host: "{{ mailjet_smtp_host }}"
-    #     port: "{{ mailjet_smtp_port }}"
-    #     username: "{{ mailjet_smtp_user }}"
-    #     password: "{{ mailjet_smtp_pass }}"  # Loaded securely from secrets.yml
-    #     from: "{{ email_sender }}"
-    #     to: "{{ email_recipient }}"
-    #     subject: "Ubuntu 24 Security Patch Report"
-    #     body: "{{ lookup('file', log_file) }}"
-    #     subtype: plain
-    #   ignore_errors: yes
+    - name: Send log via email
+      mail:
+        host: "smtp.mailjet.com"
+        port: 587
+        username: "{{ mailjet_api_key }}"
+        password: "{{ mailjet_secret_key }}"
+        to: "recipient@example.com"
+        subject: "Security Updates Applied"
+        body: "{{ update_result.stdout }}"
+        from: "your_email@example.com"
+        smtp_tls: yes
+      when: update_result.stdout is defined
