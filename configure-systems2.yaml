@@ -7,7 +7,10 @@
 
 - name: Call Roles
   hosts: 10.0.90.101
-  become: true
+  #become: true
+  ansible_become: yes 
+  ansible_become_method: sudo
+  ansible_become_pass: "12345678"
   roles:
    #- hostname
    #- firewalld
