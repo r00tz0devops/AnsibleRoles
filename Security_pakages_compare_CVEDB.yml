@@ -32,7 +32,7 @@
       command: dpkg-query -W -f='${Package} ${Version}\n'
       register: installed_packages_raw
 
-    - name: Convert installed packages to a dictionary
+    - name: Convert installed packages to dictionary
       set_fact:
         installed_packages: >-
           {{
@@ -61,13 +61,20 @@
       register: updated_vulnerable
       when: vulnerable_packages | length > 0
 
+    - name: Read existing remote log file
+      slurp:
+        src: "{{ log_file }}"
+      register: raw_log
+
+    - name: Set parsed log content
+      set_fact:
+        existing_log: "{{ raw_log.content | b64decode | from_json }}"
+
     - name: Record patch results to JSON log
       copy:
         content: >-
           {{
-            (
-              lookup('file', log_file) | from_json
-            ) + [
+            (existing_log + [
               {
                 "timestamp": ansible_date_time.iso8601,
                 "action": "vulnerable_patch",
@@ -76,12 +83,12 @@
                 "cves": vulnerable_packages,
                 "changed": updated_vulnerable.changed
               }
-            ] | to_nice_json
+            ]) | to_nice_json
           }}
         dest: "{{ log_file }}"
       when: vulnerable_packages | length > 0
 
-    - name: Perform full system upgrade if no CVEs matched
+    - name: Perform full upgrade if no CVEs matched
       apt:
         upgrade: dist
         update_cache: yes
@@ -92,9 +99,7 @@
       copy:
         content: >-
           {{
-            (
-              lookup('file', log_file) | from_json
-            ) + [
+            (existing_log + [
               {
                 "timestamp": ansible_date_time.iso8601,
                 "action": "full_upgrade",
@@ -102,11 +107,11 @@
                 "changed": full_upgrade_result.changed,
                 "msg": full_upgrade_result.msg | default("N/A")
               }
-            ] | to_nice_json
+            ]) | to_nice_json
           }}
         dest: "{{ log_file }}"
       when: full_upgrade_result is defined
 
-    - name: Output completion message
+    - name: Output summary
       debug:
-        msg: "Patch process completed. Logs available at {{ log_file }}"
+        msg: "Update complete. Logs stored at {{ log_file }}"
