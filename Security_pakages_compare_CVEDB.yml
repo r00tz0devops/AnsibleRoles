@@ -54,14 +54,14 @@
       register: update_result
       when: vulnerable_packages | length > 0
 
-    - name: Log the updates applied
-      blockinfile:
-        path: "{{ log_file }}"
-        create: yes
-        block: |
-          === Applied Updates ({{ ansible_date_time.iso8601 }}) ===
-          {{ update_result.results | map(attribute='stdout') | join('\n') }}
-      when: update_result is defined
+    # - name: Log the updates applied
+    #   blockinfile:
+    #     path: "{{ log_file }}"
+    #     create: yes
+    #     block: |
+    #       === Applied Updates ({{ ansible_date_time.iso8601 }}) ===
+    #       {{ update_result.results | map(attribute='stdout') | join('\n') }}
+    #   when: update_result is defined
 
     - name: Ensure the system is fully updated if no CVE matches
       apt:
