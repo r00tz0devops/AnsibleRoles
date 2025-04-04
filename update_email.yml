@@ -1,0 +1,57 @@
+---
+- name: Update Ubuntu Packages and Send Email Notification
+  hosts: '{{ hostname }}'
+  become: yes
+  become_user: root
+  tasks:
+    - name: Update apt package cache
+      apt:
+        update_cache: yes
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+      register: upgrade_result
+
+    - name: Get list of updated packages
+      shell: cat /var/log/dpkg.log | grep " upgrade " | awk '{print $5}' | sort | uniq
+      register: updated_packages
+      changed_when: false
+
+    - name: Get server hostname
+      command: hostname
+      register: server_name
+      changed_when: false
+
+    - name: Get user running the playbook
+      command: whoami
+      register: playbook_user
+      changed_when: false
+
+    - name: Send email with update details
+      mail:
+        host: your_smtp_server
+        port: 587
+        username: your_smtp_username
+        password: your_smtp_password
+        to: your_email@example.com
+        from: noreply@example.com
+        subject: "Ubuntu Updates on {{ server_name.stdout }}"
+        body: |
+          The following packages were updated on {{ server_name.stdout }}:
+          
+          {{ updated_packages.stdout }}
+          
+          Playbook executed by user: {{ playbook_user.stdout }}
+      delegate_to: localhost
+      ignore_errors: yes
+
+    - name: Save update details to a file if email fails
+      copy:
+        content: |
+          Server: {{ server_name.stdout }}
+          User: {{ playbook_user.stdout }}
+          Updated Packages:
+          {{ updated_packages.stdout }}
+        dest: "/var/log/ansible_update_report.txt"
+      when: upgrade_result is succeeded
