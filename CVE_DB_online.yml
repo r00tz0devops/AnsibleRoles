@@ -1,12 +1,15 @@
 ---
-- name: Compare Ubuntu CVEs and patch vulnerable packages
+- name: Compare Ubuntu CVEs (Critical, High, Medium) and patch vulnerable packages
   hosts: '{{ hostname }}'
   become: yes
   become_method: sudo
   vars:
     log_file: "/var/log/ansible/security_update_log.json"
-    cve_temp_file: "/tmp/ubuntu_cves.html"
-    cve_url: "https://ubuntu.com/security/cves?priority=critical"
+    cve_temp_dir: "/tmp/ubuntu_cves"
+    priorities:
+      - critical
+      - high
+      - medium
 
   tasks:
     - name: Ensure log file exists
@@ -15,6 +18,11 @@
         content: "[]"
         force: no
         mode: '0644'
+
+    - name: Ensure CVE temp directory exists
+      file:
+        path: "{{ cve_temp_dir }}"
+        state: directory
 
     - name: Update apt cache
       apt:
@@ -36,14 +44,31 @@
             )
           }}
 
-    - name: Download Ubuntu CVE HTML page (Critical)
-      get_url:
-        url: "{{ cve_url }}"
-        dest: "{{ cve_temp_file }}"
+    - name: Download CVE HTML pages for each priority
+      uri:
+        url: "https://ubuntu.com/security/cves?priority={{ item }}"
+        return_content: yes
+        status_code: 200
+        timeout: 60
+      register: cve_page_result
+      retries: 5
+      delay: 10
+      until: cve_page_result.status == 200
+      loop: "{{ priorities }}"
+      loop_control:
+        loop_var: item
 
-    - name: Parse CVE and package names from HTML
+    - name: Save each CVE page to separate file
+      copy:
+        content: "{{ item.1.content }}"
+        dest: "{{ cve_temp_dir }}/cves_{{ item.0 }}.html"
+      loop: "{{ priorities | zip(cve_page_result.results) }}"
+      loop_control:
+        label: "{{ item.0 }}"
+
+    - name: Parse all package names from all CVE pages
       shell: |
-        cat {{ cve_temp_file }} | grep -oP 'package/\K[^"]+' | sort -u
+        grep -hoP 'package/\K[^"]+' {{ cve_temp_dir }}/cves_*.html | sort -u
       register: vulnerable_pkg_names
 
     - name: Find installed vulnerable packages
@@ -79,9 +104,10 @@
               {
                 "timestamp": ansible_date_time.iso8601,
                 "host": inventory_hostname,
-                "action": "patch_critical_cve_packages",
+                "action": "patch_cve_packages",
                 "patched_packages": vulnerable_packages,
-                "source": "ubuntu.com/security/cves?priority=critical",
+                "priorities_checked": priorities,
+                "source_urls": priorities | map('regex_replace', '^', 'https://ubuntu.com/security/cves?priority=') | list,
                 "changed": true
               }
             ]) | to_nice_json
@@ -105,7 +131,8 @@
                 "host": inventory_hostname,
                 "action": "full_upgrade_fallback",
                 "changed": full_upgrade_result.changed,
-                "msg": full_upgrade_result.msg | default("No message")
+                "msg": full_upgrade_result.msg | default("No message"),
+                "priorities_checked": priorities
               }
             ]) | to_nice_json
           }}
@@ -114,4 +141,4 @@
 
     - name: Done
       debug:
-        msg: "CVEs checked and patched. Logs saved to {{ log_file }}"
+        msg: "CVEs (Critical, High, Medium) checked and patched. Logs saved to {{ log_file }}"
