@@ -6,13 +6,13 @@
   vars_files:
     - secrets.yml  # Load encrypted Mailjet credentials
 
-  vars:
-    log_file: "/var/log/ansible_security_patch.log"
-    mailjet_smtp_host: "in-v3.mailjet.com"
-    mailjet_smtp_port: 587
-    mailjet_smtp_user: "your-mailjet-username"
-    email_recipient: "admin@example.com"
-    email_sender: "ansible@example.com"
+  # vars:
+  #   log_file: "/var/log/ansible_security_patch.log"
+  #   mailjet_smtp_host: "in-v3.mailjet.com"
+  #   mailjet_smtp_port: 587
+  #   mailjet_smtp_user: "your-mailjet-username"
+  #   email_recipient: "admin@example.com"
+  #   email_sender: "ansible@example.com"
 
   tasks:
     - name: Ensure log file exists
@@ -71,15 +71,15 @@
         line: "Remaining Security Updates:\n{{ security_updates_after.stdout }}"
         create: yes
 
-    - name: Send logs via email using Mailjet SMTP
-      community.general.mail:
-        host: "{{ mailjet_smtp_host }}"
-        port: "{{ mailjet_smtp_port }}"
-        username: "{{ mailjet_smtp_user }}"
-        password: "{{ mailjet_smtp_pass }}"  # Loaded securely from secrets.yml
-        from: "{{ email_sender }}"
-        to: "{{ email_recipient }}"
-        subject: "Ubuntu 24 Security Patch Report"
-        body: "{{ lookup('file', log_file) }}"
-        subtype: plain
-      ignore_errors: yes
+    # - name: Send logs via email using Mailjet SMTP
+    #   community.general.mail:
+    #     host: "{{ mailjet_smtp_host }}"
+    #     port: "{{ mailjet_smtp_port }}"
+    #     username: "{{ mailjet_smtp_user }}"
+    #     password: "{{ mailjet_smtp_pass }}"  # Loaded securely from secrets.yml
+    #     from: "{{ email_sender }}"
+    #     to: "{{ email_recipient }}"
+    #     subject: "Ubuntu 24 Security Patch Report"
+    #     body: "{{ lookup('file', log_file) }}"
+    #     subtype: plain
+    #   ignore_errors: yes
