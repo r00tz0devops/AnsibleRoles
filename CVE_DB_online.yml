@@ -1,0 +1,129 @@
+---
+- name: Compare CVEs from NVD with installed packages on Ubuntu
+  hosts: '{{ hostname }}'
+  become: yes
+  become_method: sudo
+  vars:
+    log_file: "/var/log/ansible/security_update_log.json"
+    nvd_url: "https://services.nvd.nist.gov/rest/json/cve/1.0"
+    cve_database_file: "/var/log/ansible/nvd_cve_data.json"
+  
+  tasks:
+    - name: Ensure JSON log file exists
+      copy:
+        content: "[]"
+        dest: "{{ log_file }}"
+        force: no
+        mode: "0644"
+
+    - name: Update APT package index
+      apt:
+        update_cache: yes
+
+    - name: Gather installed packages
+      command: dpkg-query -W -f='${Package} ${Version}\n'
+      register: installed_packages_raw
+
+    - name: Convert installed packages to dictionary
+      set_fact:
+        installed_packages: >-
+          {{
+            dict(
+              installed_packages_raw.stdout_lines
+              | map('split', ' ')
+              | map('first')
+              | zip(installed_packages_raw.stdout_lines | map('split', ' ') | map('last'))
+            )
+          }}
+
+    - name: Fetch CVE data from NVD API
+      uri:
+        url: "{{ nvd_url }}"
+        method: GET
+        return_content: yes
+        headers:
+          Content-Type: application/json
+      register: cve_data
+      # Add parameters here if you want to filter results by CVE type, year, etc.
+
+    - name: Parse NVD CVE data
+      set_fact:
+        cve_list: "{{ cve_data.json.result.CVE_Items }}"
+
+    - name: Identify vulnerable installed packages
+      set_fact:
+        vulnerable_packages: >-
+          {{
+            cve_list
+            | selectattr('cve.CVE_data_meta.ID', 'in', installed_packages.keys())
+            | selectattr('cve.CVE_data_meta.ID', 'defined')
+            | map(attribute='cve')
+            | map(attribute='CVE_data_meta')
+            | map(attribute='ID')
+            | list
+          }}
+
+    - name: Log vulnerable packages
+      debug:
+        msg: "Vulnerable packages: {{ vulnerable_packages }}"
+
+    - name: Patch vulnerable packages
+      apt:
+        name: "{{ item }}"
+        state: latest
+      loop: "{{ vulnerable_packages }}"
+      when: vulnerable_packages | length > 0
+
+    - name: Read existing remote log file
+      slurp:
+        src: "{{ log_file }}"
+      register: raw_log
+
+    - name: Set parsed log content
+      set_fact:
+        existing_log: "{{ raw_log.content | b64decode | from_json }}"
+
+    - name: Record patch results to JSON log
+      copy:
+        content: >-
+          {{
+            (existing_log + [
+              {
+                "timestamp": ansible_date_time.iso8601,
+                "action": "vulnerable_patch",
+                "host": inventory_hostname,
+                "patched": vulnerable_packages,
+                "changed": true
+              }
+            ]) | to_nice_json
+          }}
+        dest: "{{ log_file }}"
+      when: vulnerable_packages | length > 0
+
+    - name: Perform full upgrade if no CVEs matched
+      apt:
+        upgrade: dist
+        update_cache: yes
+      register: full_upgrade_result
+      when: vulnerable_packages | length == 0
+
+    - name: Record full upgrade result to JSON log
+      copy:
+        content: >-
+          {{
+            (existing_log + [
+              {
+                "timestamp": ansible_date_time.iso8601,
+                "action": "full_upgrade",
+                "host": inventory_hostname,
+                "changed": full_upgrade_result.changed,
+                "msg": full_upgrade_result.msg | default("N/A")
+              }
+            ]) | to_nice_json
+          }}
+        dest: "{{ log_file }}"
+      when: full_upgrade_result is defined
+
+    - name: Output completion message
+      debug:
+        msg: "Patch process completed. Logs available at {{ log_file }}"
