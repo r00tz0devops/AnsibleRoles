@@ -1,0 +1,59 @@
+---
+- name: Verify high-priority vulnerable packages and update
+  hosts: '{{ hostname }}'
+  become: yes
+  become_method: sudo
+  vars:
+    log_file: "/var/log/ansible/security_update_log.txt"
+    high_priority_cves:
+      - package: "openssl"
+        cve: "CVE-2021-3450"
+        version: "1.1.1k-1ubuntu3.1"
+      - package: "libcurl3"
+        cve: "CVE-2020-8231"
+        version: "7.68.0-1ubuntu2.6"
+    # Add more CVE entries as needed
+
+  tasks:
+    - name: Ensure log file exists
+      file:
+        path: "{{ log_file }}"
+        state: touch
+        mode: "0644"
+
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+
+    - name: Check installed packages
+      command: "dpkg-query -W -f='${Package} ${Version}\n'"
+      register: installed_packages
+
+    - name: Log installed packages
+      copy:
+        content: "{{ installed_packages.stdout }}"
+        dest: "{{ log_file }}"
+        append: yes
+
+    - name: Compare installed packages with known vulnerable packages
+      set_fact:
+        vulnerable_packages: "{{ high_priority_cves | selectattr('package', 'in', installed_packages.stdout.split('\n') | map('split', ' ') | map('first')) | list }}"
+
+    - name: Install updates for vulnerable packages
+      apt:
+        name: "{{ item.package }}"
+        state: latest
+      loop: "{{ vulnerable_packages }}"
+      register: update_result
+      when: vulnerable_packages | length > 0
+
+    - name: Log the updates applied
+      copy:
+        content: "{{ update_result.stdout }}"
+        dest: "{{ log_file }}"
+        append: yes
+      when: update_result is defined
+
+    - name: Output completion message
+      debug:
+        msg: "Vulnerable packages have been checked and updated. Log is available at {{ log_file }}"
