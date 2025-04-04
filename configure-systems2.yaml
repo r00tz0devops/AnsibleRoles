@@ -10,7 +10,7 @@
   #become: true
   ansible_become: yes 
   ansible_become_method: sudo
-  ansible_become_pass: "12345678"
+  ansible_become_pass: 12345678
   roles:
    #- hostname
    #- firewalld
