@@ -12,7 +12,7 @@
       - package: "libcurl3"
         cve: "CVE-2020-8231"
         version: "7.68.0-1ubuntu2.6"
-    # Add more CVE entries as needed
+      # Add more CVEs as needed
 
   tasks:
     - name: Ensure log file exists
@@ -30,14 +30,21 @@
       register: installed_packages
 
     - name: Log installed packages
-      copy:
-        content: "{{ installed_packages.stdout }}"
-        dest: "{{ log_file }}"
-        append: yes
+      blockinfile:
+        path: "{{ log_file }}"
+        create: yes
+        block: |
+          === Installed Packages ({{ ansible_date_time.iso8601 }}) ===
+          {{ installed_packages.stdout }}
 
     - name: Compare installed packages with known vulnerable packages
       set_fact:
-        vulnerable_packages: "{{ high_priority_cves | selectattr('package', 'in', installed_packages.stdout.split('\n') | map('split', ' ') | map('first')) | list }}"
+        vulnerable_packages: >-
+          {{
+            high_priority_cves
+            | selectattr('package', 'in', installed_packages.stdout_lines | map('split', ' ') | map('first') | list)
+            | list
+          }}
 
     - name: Install updates for vulnerable packages
       apt:
@@ -48,11 +55,29 @@
       when: vulnerable_packages | length > 0
 
     - name: Log the updates applied
-      copy:
-        content: "{{ update_result.stdout }}"
-        dest: "{{ log_file }}"
-        append: yes
+      blockinfile:
+        path: "{{ log_file }}"
+        create: yes
+        block: |
+          === Applied Updates ({{ ansible_date_time.iso8601 }}) ===
+          {{ update_result.results | map(attribute='stdout') | join('\n') }}
       when: update_result is defined
+
+    - name: Ensure the system is fully updated if no CVE matches
+      apt:
+        upgrade: dist
+        update_cache: yes
+      register: full_upgrade_result
+      when: vulnerable_packages | length == 0
+
+    - name: Log the full upgrade result
+      blockinfile:
+        path: "{{ log_file }}"
+        create: yes
+        block: |
+          === Full Upgrade Output ({{ ansible_date_time.iso8601 }}) ===
+          {{ full_upgrade_result.stdout }}
+      when: full_upgrade_result is defined
 
     - name: Output completion message
       debug:
