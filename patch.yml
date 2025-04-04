@@ -1,0 +1,10 @@
+---
+- hosts: '{{ hostname }}'
+  become: yes
+  become_user: root
+  tasks:
+    - name Upgrade all pakages
+      ansible.builtin.apt
+        name: '*'
+        state: latest
+        
