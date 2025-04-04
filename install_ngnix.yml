@@ -3,7 +3,6 @@
   hosts: '{{ hostname }}'
   become: yes
   become_method: sudo
-
   tasks:
     - name: Update apt package index
       apt:
