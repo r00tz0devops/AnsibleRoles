@@ -2,7 +2,7 @@
 - name: Apply security updates on Ubuntu 24.04
   hosts: '{{ hostname }}'
   become: yes
-  become_user: root
+  become_method: sudo
   vars:
     log_file: "/var/log/ansible/security_updates.log"  # Define the log file location
 
