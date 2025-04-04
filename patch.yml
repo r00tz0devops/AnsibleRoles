@@ -3,8 +3,8 @@
   become: yes
   become_user: root
   tasks:
-    - name Upgrade all pakages
-      ansible.builtin.apt
-        name: '*'
-        state: latest
+   - name: Update all packages to their latest version
+  ansible.builtin.apt:
+    name: "*"
+    state: latest
         
