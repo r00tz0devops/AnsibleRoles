@@ -20,10 +20,10 @@
         state: started
         enabled: yes
 
-    - name: Allow HTTP and HTTPS traffic in the firewall
-      ufw:
-        rule: allow
-        name: 'Nginx Full'
+    # - name: Allow HTTP and HTTPS traffic in the firewall
+    #   ufw:
+    #     rule: allow
+    #     name: 'Nginx Full'
 
     - name: Check NGINX status
       command: systemctl status nginx
