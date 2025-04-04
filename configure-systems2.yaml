@@ -7,7 +7,7 @@
 
 - name: Call Roles
   hosts: 10.0.90.101
-  become: ture
+  become: true
   roles:
    #- hostname
    #- firewalld
