@@ -23,10 +23,10 @@
       apt:
         update_cache: yes
 
-    - name: Install security updates
-      apt:
-        upgrade: security
+    - name: Install security updates using apt-get
+      command: "apt-get upgrade -y --only-upgrade"
       register: update_result
+      ignore_errors: yes
 
     - name: Log update results
       copy:
@@ -34,15 +34,15 @@
         dest: "{{ log_file }}"
       when: update_result.stdout is defined
 
-    # - name: Send log via email
-    #   mail:
-    #     host: "smtp.mailjet.com"
-    #     port: 587
-    #     username: "{{ mailjet_api_key }}"
-    #     password: "{{ mailjet_secret_key }}"
-    #     to: "recipient@example.com"
-    #     subject: "Security Updates Applied"
-    #     body: "{{ update_result.stdout }}"
-    #     from: "your_email@example.com"
-    #     smtp_tls: yes
-    #   when: update_result.stdout is defined
+    - name: Send log via email
+      mail:
+        host: "smtp.mailjet.com"
+        port: 587
+        username: "{{ mailjet_api_key }}"
+        password: "{{ mailjet_secret_key }}"
+        to: "recipient@example.com"
+        subject: "Security Updates Applied"
+        body: "{{ update_result.stdout }}"
+        from: "your_email@example.com"
+        smtp_tls: yes
+      when: update_result.stdout is defined
