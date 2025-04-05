@@ -1,0 +1,87 @@
+---
+- name: Install Graylog on Ubuntu
+  hosts: '{{ hostname }}'
+  become: yes
+  become_method: sudo
+  vars:
+    graylog_password_secret: "EX1ebvLAKz9O0ldzlQWGsqmyWL06GYstDx6VYDN5YLI="  # Use `openssl rand -base64 32`
+    graylog_root_password: "admin"  # Use a hashed password (`echo -n yourpassword | sha256sum`)
+    graylog_version: "5.2"
+    elasticsearch_version: "7.x"
+
+  tasks:
+    - name: Install required dependencies
+      apt:
+        name:
+          - apt-transport-https
+          - openjdk-17-jre-headless
+          - uuid-runtime
+          - pwgen
+          - gnupg
+          - curl
+        state: present
+        update_cache: yes
+
+    - name: Install MongoDB (via Ubuntu repo)
+      apt:
+        name: mongodb
+        state: present
+
+    - name: Add Elasticsearch GPG key
+      apt_key:
+        url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+    - name: Add Elasticsearch repository
+      apt_repository:
+        repo: "deb https://artifacts.elastic.co/packages/{{ elasticsearch_version }}/apt stable main"
+        state: present
+
+    - name: Install Elasticsearch
+      apt:
+        name: elasticsearch
+        state: present
+
+    - name: Configure Elasticsearch
+      lineinfile:
+        path: /etc/elasticsearch/elasticsearch.yml
+        line: "discovery.type: single-node"
+        create: yes
+
+    - name: Enable and start Elasticsearch
+      systemd:
+        name: elasticsearch
+        enabled: yes
+        state: started
+
+    - name: Add Graylog repository
+      apt_key:
+        url: https://packages.graylog2.org/repo/packages/graylog-archive-keyring.gpg
+        state: present
+
+    - name: Add Graylog repository to APT
+      apt_repository:
+        repo: "deb https://packages.graylog2.org/repo/debian/ stable {{ graylog_version }}"
+        state: present
+
+    - name: Install Graylog
+      apt:
+        name: graylog-server
+        state: present
+        update_cache: yes
+
+    - name: Configure Graylog secrets and passwords
+      lineinfile:
+        path: /etc/graylog/server/server.conf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: '^password_secret =', line: "password_secret = {{ graylog_password_secret }}" }
+        - { regexp: '^root_password_sha2 =', line: "root_password_sha2 = {{ graylog_root_password | hash('sha256') }}" }
+        - { regexp: '^http_bind_address =', line: "http_bind_address = 0.0.0.0:9000" }
+
+    - name: Enable and start Graylog
+      systemd:
+        name: graylog-server
+        enabled: yes
+        state: started
