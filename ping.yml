@@ -1,0 +1,8 @@
+---
+- name: Test SSH connectivity
+  hosts: '{{ hostname }}'
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: Ping client
+      ansible.builtin.ping:
