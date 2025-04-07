@@ -10,7 +10,6 @@
   tasks:
     - name: Ensure the log directory exists
       become: yes
-      become_method: sudo
       file:
         path: "{{ log_dir }}"
         state: directory
@@ -18,39 +17,61 @@
 
     - name: Ensure the log file exists
       become: yes
-      become_method: sudo
       file:
         path: "{{ log_file }}"
         state: touch
         mode: "0644"
 
     - name: Update package cache
+      become: yes
       apt:
         update_cache: yes
         cache_valid_time: 3600
 
+    - name: List upgradable packages
+      become: yes
+      shell: apt list --upgradable
+      register: upgradable_list
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check for security updates
+      become: yes
+      shell: apt-get -s upgrade | grep -i security || echo "No security updates available"
+      register: security_check
+      changed_when: false
+      ignore_errors: yes
+
     - name: Perform security upgrade
       become: yes
-      become_method: sudo
-      shell: |
-        apt list --upgradable
-        apt-get -s upgrade | grep -i security || echo "No security updates available"
-        apt-get upgrade -y --only-upgrade
+      shell: apt-get upgrade -y --only-upgrade
       register: upgrade_output
       changed_when: "'upgraded' in upgrade_output.stdout or 'upgraded' in upgrade_output.stderr"
       ignore_errors: yes
 
     - name: Log the update results
       become: yes
-      become_method: sudo
       copy:
         content: |
           ===== Security Update Log =====
           Date: {{ ansible_date_time.iso8601 }}
           Host: {{ inventory_hostname }}
           --------------------------------
+          Upgradable Packages:
+          {{ upgradable_list.stdout | default('N/A') }}
+
+          Security-related Updates:
+          {{ security_check.stdout | default('N/A') }}
+
+          Upgrade Result:
           {{ upgrade_output.stdout | default('No output captured') }}
         dest: "{{ log_file }}"
+        mode: "0644"
+
+    - name: Notify success
+      debug:
+        msg: "Security updates applied successfully on {{ inventory_hostname }} and logged to {{ log_file }}."
+
 
 
     # - name: Send log via email
