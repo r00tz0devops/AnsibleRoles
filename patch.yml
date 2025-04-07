@@ -1,104 +1,101 @@
 ---
-- name: Apply security updates and log system/user info in JSON format
+- name: Apply security updates and log info on Ubuntu 24.04
   hosts: '{{ hostname }}'
   become: yes
   vars:
-    log_file: "/var/tmp/security_updates_log.json"
-    system_ip: "{{ ansible_default_ipv4.address }}"
-    ubuntu_version: "{{ ansible_lsb.release | default('unknown') }}"
-    kernel_version: "{{ ansible_kernel }}"
+    log_file: "/tmp/security_updates_log.json"
+
   tasks:
 
-    - name: Ensure log file exists
+    - name: Ensure the log file exists
       file:
         path: "{{ log_file }}"
         state: touch
         mode: "0664"
 
-    - name: Calculate human-readable uptime
-      set_fact:
-        human_uptime: >
-          {{ (ansible_uptime_seconds | int // 86400) }} days
-          {{ ((ansible_uptime_seconds | int % 86400) // 3600) }} hours
-          {{ ((ansible_uptime_seconds | int % 3600) // 60) }} minutes
+    - name: Gather uptime
+      command: uptime -p
+      register: uptime_result
 
     - name: Get logged-in users
-      command: "who"
+      command: who
       register: users_connected
-      ignore_errors: true
-      changed_when: false
 
-    - name: Format user connection info
+    - name: Parse user connection info
       set_fact:
         user_info: |
           {% set users = [] %}
           {% for line in users_connected.stdout_lines %}
             {% set parts = line.split() %}
-            {% if parts | length > 4 %}
-              {% set users = users + [{'user': parts[0], 'ip': parts[4] | regex_replace('[()]', '')}] %}
+            {% if parts|length > 4 %}
+              {% set users = users + [{'user': parts[0], 'ip': parts[4] | replace('(', '') | replace(')', '') }] %}
             {% endif %}
           {% endfor %}
           {{ users }}
 
-    - name: Log user and system info
-      copy:
-        content: |
-          {
-            "date": "{{ ansible_date_time.iso8601 }}",
-            "hostname": "{{ inventory_hostname }}",
-            "ip_address": "{{ system_ip }}",
-            "ubuntu_version": "{{ ubuntu_version }}",
-            "kernel_version": "{{ kernel_version }}",
-            "uptime": "{{ human_uptime }}",
-            "task": "System Info and Logged-in Users",
-            "user_connections": {{ user_info }}
-          }
-        dest: "{{ log_file }}"
-        mode: "0664"
-        append: yes
+    - name: Collect system info
+      set_fact:
+        sysinfo:
+          date: "{{ ansible_date_time.iso8601 }}"
+          hostname: "{{ inventory_hostname }}"
+          ip_address: "{{ ansible_default_ipv4.address }}"
+          ubuntu_version: "{{ ansible_lsb.release }}"
+          kernel_version: "{{ ansible_kernel }}"
+          uptime: "{{ uptime_result.stdout }}"
+          task: "Collect system info and users"
+          user_connections: "{{ user_info }}"
 
-    - name: Update apt cache
+    - name: Append system/user info to log
+      lineinfile:
+        path: "{{ log_file }}"
+        create: yes
+        line: "{{ sysinfo | to_json }}"
+        insertafter: EOF
+
+    - name: Update APT cache
       apt:
         update_cache: yes
-      register: apt_cache_update
+      register: apt_update
 
-    - name: Log apt cache update result
-      copy:
-        content: |
-          {
-            "date": "{{ ansible_date_time.iso8601 }}",
-            "hostname": "{{ inventory_hostname }}",
-            "task": "Update APT Cache",
-            "status": "{{ 'success' if apt_cache_update.rc == 0 else 'failure' }}",
-            "stdout": "{{ apt_cache_update.stdout | default('') }}",
-            "stderr": "{{ apt_cache_update.stderr | default('') }}",
-            "return_code": {{ apt_cache_update.rc }}
-          }
-        dest: "{{ log_file }}"
-        mode: "0664"
-        append: yes
+    - name: Log APT update result
+      set_fact:
+        apt_update_log:
+          date: "{{ ansible_date_time.iso8601 }}"
+          hostname: "{{ inventory_hostname }}"
+          ip_address: "{{ ansible_default_ipv4.address }}"
+          task: "APT update"
+          status: "{{ 'success' if apt_update.rc == 0 else 'failure' }}"
+          stdout: "{{ apt_update.stdout | default('') }}"
+          stderr: "{{ apt_update.stderr | default('') }}"
+          return_code: "{{ apt_update.rc }}"
 
-    - name: Apply security updates
-      command: "apt-get upgrade -y --only-upgrade"
-      register: update_result
+    - name: Append apt update result to log
+      lineinfile:
+        path: "{{ log_file }}"
+        create: yes
+        line: "{{ apt_update_log | to_json }}"
+        insertafter: EOF
+
+    - name: Install security updates
+      command: apt-get upgrade -y --only-upgrade
+      register: upgrade_result
       ignore_errors: true
 
-    - name: Log security update result
-      copy:
-        content: |
-          {
-            "date": "{{ ansible_date_time.iso8601 }}",
-            "hostname": "{{ inventory_hostname }}",
-            "task": "Install Security Updates",
-            "status": "{{ 'success' if update_result.rc == 0 else 'failure' }}",
-            "stdout": "{{ update_result.stdout | default('') }}",
-            "stderr": "{{ update_result.stderr | default('') }}",
-            "return_code": {{ update_result.rc }}
-          }
-        dest: "{{ log_file }}"
-        mode: "0664"
-        append: yes
+    - name: Log upgrade result
+      set_fact:
+        upgrade_log:
+          date: "{{ ansible_date_time.iso8601 }}"
+          hostname: "{{ inventory_hostname }}"
+          ip_address: "{{ ansible_default_ipv4.address }}"
+          task: "Install security updates"
+          status: "{{ 'success' if upgrade_result.rc == 0 else 'failure' }}"
+          stdout: "{{ upgrade_result.stdout | default('') }}"
+          stderr: "{{ upgrade_result.stderr | default('') }}"
+          return_code: "{{ upgrade_result.rc }}"
 
-    - name: Output summary
-      debug:
-        msg: "Security update playbook completed. Log saved to {{ log_file }}"
+    - name: Append upgrade result to log
+      lineinfile:
+        path: "{{ log_file }}"
+        create: yes
+        line: "{{ upgrade_log | to_json }}"
+        insertafter: EOF
