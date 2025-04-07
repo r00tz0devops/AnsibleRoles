@@ -57,6 +57,7 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
+            "uptime": "{{ ansible_facts.uptime.days }} days {{ ansible_facts.uptime.hours }} hours {{ ansible_facts.uptime.minutes }} minutes",
             "task": "Log user connections",
             "user_connections": "{{ user_info }}"
           }
@@ -82,6 +83,7 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
+            "uptime": "{{ ansible_facts.uptime.days }} days {{ ansible_facts.uptime.hours }} hours {{ ansible_facts.uptime.minutes }} minutes",
             "task": "Update package cache",
             "status": "{{ 'success' if apt_cache_update.rc == 0 else 'failure' }}",
             "stdout": "{{ apt_cache_update.stdout | default('No output') }}",
@@ -109,6 +111,7 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
+            "uptime": "{{ ansible_facts.uptime.days }} days {{ ansible_facts.uptime.hours }} hours {{ ansible_facts.uptime.minutes }} minutes",
             "task": "Install security updates",
             "status": "{{ 'success' if update_result.rc == 0 else 'failure' }}",
             "stdout": "{{ update_result.stdout | default('No output') }}",
@@ -136,6 +139,7 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
+            "uptime": "{{ ansible_facts.uptime.days }} days {{ ansible_facts.uptime.hours }} hours {{ ansible_facts.uptime.minutes }} minutes",
             "task": "Check for upgradable packages",
             "status": "{{ 'success' if upgradable_result.rc == 0 else 'failure' }}",
             "stdout": "{{ upgradable_result.stdout | default('No upgradable packages') }}",
