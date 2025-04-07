@@ -67,7 +67,9 @@
       when: apt_process_check.stdout_lines is defined
       ignore_errors: true
 
-    - name: Remove any stale lock files
+    - name: Remove any stale lock files with sudo
+      become: yes
+      become_method: sudo
       file:
         path: "{{ item }}"
         state: absent
