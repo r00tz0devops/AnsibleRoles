@@ -4,7 +4,7 @@
   become: yes
   become_method: sudo
   vars:
-    graylog_password_secret: "EX1ebvLAKz9O0ldzlQWGsqmyWL06GYstDx6VYDN5YLI="  # Use `openssl rand -base64 32`
+    graylog_password_secret: "XXXX"  # Use `openssl rand -base64 32`
     graylog_root_password: "admin"  # Use a hashed password (`echo -n yourpassword | sha256sum`)
     graylog_version: "5.2"
     elasticsearch_version: "7.x"
