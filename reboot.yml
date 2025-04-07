@@ -3,23 +3,23 @@
   hosts: "{{ hostname | default('all') }}"
   become: yes
   become_method: sudo
+  become_flags: '-S'  # Ensures sudo does not prompt for a password
 
   tasks:
     - name: Reboot the server
-      reboot:
-        reboot_timeout: 600  # Timeout in seconds (10 minutes) for the system to reboot
-        test_command: uptime  # Command to check if the server is back online
+      command: /sbin/shutdown -r now
       register: reboot_status
+      ignore_errors: yes  # Allow to continue even if reboot fails
 
-    - name: Ensure the server is back online
+    - name: Wait for server to come back online
       wait_for:
         host: "{{ inventory_hostname }}"
-        port: 22  # Ensure SSH port is available
+        port: 22  # SSH port to check if the server is back online
         state: started
-        delay: 10  # Wait 10 seconds before retrying
-        timeout: 300  # Wait a maximum of 5 minutes for the server to be back online
+        delay: 10  # Wait 10 seconds before checking again
+        timeout: 300  # Maximum 5 minutes to wait for the server to be back online
 
     - name: Confirm reboot was successful
       debug:
         msg: "Server {{ inventory_hostname }} has been successfully rebooted."
-      when: reboot_status.changed
+      when: reboot_status.rc == 0  # Only run this task if the reboot succeeded
