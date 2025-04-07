@@ -61,13 +61,13 @@
       register: apt_process_check
       ignore_errors: true
 
-    - name: Kill apt processes if running (caution: use with care)
+    - name: Kill apt processes if running
       command: "kill -9 {{ item }}"
       loop: "{{ apt_process_check.stdout_lines }}"
       when: apt_process_check.stdout_lines is defined
       ignore_errors: true
 
-    - name: Remove any stale lock files (caution: use with care)
+    - name: Remove any stale lock files
       file:
         path: "{{ item }}"
         state: absent
