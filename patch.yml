@@ -56,6 +56,27 @@
         line: "{{ sysinfo | to_json }}"
         insertafter: EOF
 
+    - name: Ensure no other apt processes are running
+      command: "pgrep -x apt || true"
+      register: apt_process_check
+      ignore_errors: true
+
+    - name: Kill apt processes if running (caution: use with care)
+      command: "kill -9 {{ item }}"
+      loop: "{{ apt_process_check.stdout_lines }}"
+      when: apt_process_check.stdout_lines is defined
+      ignore_errors: true
+
+    - name: Remove any stale lock files (caution: use with care)
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/var/lib/dpkg/lock-frontend"
+        - "/var/lib/dpkg/lock"
+        - "/var/lib/apt/lists/lock"
+      ignore_errors: true
+
     - name: Update APT cache
       become: yes
       become_method: sudo
@@ -112,4 +133,3 @@
         line: "{{ upgrade_log | to_json }}"
         insertafter: EOF
       when: upgrade_result is defined
-
