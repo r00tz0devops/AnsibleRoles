@@ -10,6 +10,7 @@
   tasks:
     - name: Ensure the log directory exists
       become: yes
+      become_method: sudo
       file:
         path: "{{ log_dir }}"
         state: directory
@@ -17,6 +18,7 @@
 
     - name: Ensure the log file exists
       become: yes
+      become_method: sudo
       file:
         path: "{{ log_file }}"
         state: touch
@@ -29,6 +31,7 @@
 
     - name: Perform security upgrade
       become: yes
+      become_method: sudo
       shell: |
         apt list --upgradable
         apt-get -s upgrade | grep -i security || echo "No security updates available"
@@ -39,6 +42,7 @@
 
     - name: Log the update results
       become: yes
+      become_method: sudo
       copy:
         content: |
           ===== Security Update Log =====
