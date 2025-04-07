@@ -57,6 +57,8 @@
         insertafter: EOF
 
     - name: Update APT cache
+      become: yes
+      become_method: sudo
       apt:
         update_cache: yes
       register: apt_update
@@ -84,6 +86,8 @@
       when: apt_update is defined
 
     - name: Install security updates
+      become: yes
+      become_method: sudo
       command: apt-get upgrade -y --only-upgrade
       register: upgrade_result
       ignore_errors: true
