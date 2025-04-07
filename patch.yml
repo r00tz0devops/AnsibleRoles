@@ -10,12 +10,14 @@
     kernel_version: "{{ ansible_kernel }}"  # Capture Kernel version
   tasks:
 
-    # Ensure the /var/log/ansible directory exists
-    - name: Ensure the /var/log/ansible directory exists
+    # Ensure the /var/log/ansible directory exists with the right permissions
+    - name: Ensure the /var/log/ansible directory exists with the correct permissions
       file:
         path: "/var/log/ansible"
         state: directory
         mode: "0755"
+        owner: root
+        group: root
 
     # Ensure log file exists or create it
     - name: Ensure log file exists
@@ -23,6 +25,8 @@
         path: "{{ log_file }}"
         state: touch
         mode: "0644"
+        owner: root
+        group: root
 
     # Get logged in users and their IPs
     - name: Get logged in users and their IPs
@@ -63,6 +67,8 @@
           }
         dest: "{{ log_file }}"
         mode: "0644"
+        owner: root
+        group: root
         append: yes  # Append the result to the log file
 
     # Update package cache
@@ -92,6 +98,8 @@
           }
         dest: "{{ log_file }}"
         mode: "0644"
+        owner: root
+        group: root
         append: yes  # Append the result to the log file
 
     # Install security updates
@@ -120,6 +128,8 @@
           }
         dest: "{{ log_file }}"
         mode: "0644"
+        owner: root
+        group: root
         append: yes  # Append the result to the log file
 
     # Check for upgradable packages (optional, for logging purposes)
@@ -148,6 +158,8 @@
           }
         dest: "{{ log_file }}"
         mode: "0644"
+        owner: root
+        group: root
         append: yes  # Append the result to the log file
 
     # Output the final status of the upgrade process
