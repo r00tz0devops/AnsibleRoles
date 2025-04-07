@@ -1,19 +1,22 @@
 ---
 - name: Apply security updates on Ubuntu 24.04
-  hosts: '{{ hostname }}'
+  hosts: "{{ hostname | default('all') }}"
   become: yes
   become_method: sudo
   vars:
-    log_file: "/var/log/ansible/security_updates.log"  # Define the log file location
+    log_dir: "/var/tmp/ansible_logs"
+    log_file: "{{ log_dir }}/security_updates.log"
 
   tasks:
-    - name: Ensure the /var/log/ansible directory exists
+    - name: Ensure the log directory exists
+      become: yes
       file:
-        path: "/var/log/ansible"
+        path: "{{ log_dir }}"
         state: directory
         mode: "0755"
 
-    - name: Ensure log file exists
+    - name: Ensure the log file exists
+      become: yes
       file:
         path: "{{ log_file }}"
         state: touch
@@ -22,17 +25,29 @@
     - name: Update package cache
       apt:
         update_cache: yes
+        cache_valid_time: 3600
 
-    - name: Install security updates using apt-get
-      command: "apt-get upgrade -y --only-upgrade"
-      register: update_result
+    - name: Perform security upgrade
+      become: yes
+      shell: |
+        apt list --upgradable
+        apt-get -s upgrade | grep -i security || echo "No security updates available"
+        apt-get upgrade -y --only-upgrade
+      register: upgrade_output
+      changed_when: "'upgraded' in upgrade_output.stdout or 'upgraded' in upgrade_output.stderr"
       ignore_errors: yes
 
-    - name: Log update results
+    - name: Log the update results
+      become: yes
       copy:
-        content: "{{ update_result.stdout }}"
+        content: |
+          ===== Security Update Log =====
+          Date: {{ ansible_date_time.iso8601 }}
+          Host: {{ inventory_hostname }}
+          --------------------------------
+          {{ upgrade_output.stdout | default('No output captured') }}
         dest: "{{ log_file }}"
-      when: update_result.stdout is defined
+
 
     # - name: Send log via email
     #   mail:
