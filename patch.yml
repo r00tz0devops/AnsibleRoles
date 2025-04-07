@@ -6,6 +6,8 @@
   vars:
     log_file: "/var/log/ansible/security_updates_log.json"  # Define the log file location
     system_ip: "{{ ansible_default_ipv4.address }}"  # Capture the system's IP address
+    ubuntu_version: "{{ ansible_lsb.release }}"  # Capture Ubuntu version
+    kernel_version: "{{ ansible_kernel }}"  # Capture Kernel version
   tasks:
 
     # Ensure the /var/log/ansible directory exists
@@ -38,6 +40,8 @@
             "date": "{{ ansible_date_time.iso8601 }}",
             "hostname": "{{ inventory_hostname }}",
             "ip_address": "{{ system_ip }}",
+            "ubuntu_version": "{{ ubuntu_version }}",
+            "kernel_version": "{{ kernel_version }}",
             "task": "Update package cache",
             "status": "{{ 'success' if apt_cache_update.rc == 0 else 'failure' }}",
             "stdout": "{{ apt_cache_update.stdout | default('No output') }}",
@@ -63,6 +67,8 @@
             "date": "{{ ansible_date_time.iso8601 }}",
             "hostname": "{{ inventory_hostname }}",
             "ip_address": "{{ system_ip }}",
+            "ubuntu_version": "{{ ubuntu_version }}",
+            "kernel_version": "{{ kernel_version }}",
             "task": "Install security updates",
             "status": "{{ 'success' if update_result.rc == 0 else 'failure' }}",
             "stdout": "{{ update_result.stdout | default('No output') }}",
@@ -88,6 +94,8 @@
             "date": "{{ ansible_date_time.iso8601 }}",
             "hostname": "{{ inventory_hostname }}",
             "ip_address": "{{ system_ip }}",
+            "ubuntu_version": "{{ ubuntu_version }}",
+            "kernel_version": "{{ kernel_version }}",
             "task": "Check for upgradable packages",
             "status": "{{ 'success' if upgradable_result.rc == 0 else 'failure' }}",
             "stdout": "{{ upgradable_result.stdout | default('No upgradable packages') }}",
