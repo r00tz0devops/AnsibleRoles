@@ -1,55 +1,37 @@
 ---
-- name: Apply security updates and log everything in JSON format
-  hosts: "{{ hostname }}"
+- name: Apply security updates on Ubuntu 24.04
+  hosts: '{{ hostname }}'
   become: yes
   become_method: sudo
   vars:
-    log_dir: "/var/tmp/ansible_logs"
-    log_file: "{{ log_dir }}/security_updates_log.json"
-
+    log_file: "/var/log/ansible/security_updates_log.json"  # Define the log file location
+    system_ip: "{{ ansible_default_ipv4.address }}"  # Capture the system's IP address
   tasks:
-    - name: Gather system facts
-      ansible.builtin.setup:
 
-    - name: Ensure the log directory exists
-      become: yes
+    # Ensure the /var/log/ansible directory exists
+    - name: Ensure the /var/log/ansible directory exists
       file:
-        path: "{{ log_dir }}"
+        path: "/var/log/ansible"
         state: directory
         mode: "0755"
 
-    - name: Ensure the log file exists
-      become: yes
+    # Ensure log file exists or create it
+    - name: Ensure log file exists
       file:
         path: "{{ log_file }}"
         state: touch
         mode: "0644"
 
-    - name: Get the system's IP address
-      set_fact:
-        system_ip: "{{ ansible_default_ipv4.address }}"
-
+    # Update package cache
     - name: Update package cache
-      become: yes
       apt:
         update_cache: yes
-        cache_valid_time: 3600
       register: apt_cache_update
-      notify:
-        - Log the update cache result
+      ignore_errors: yes
+      no_log: true
 
-    - name: Perform dist-upgrade
-      become: yes
-      apt:
-        upgrade: dist
-        autoremove: yes
-        autoclean: yes
-      register: apt_upgrade
-      notify:
-        - Log the upgrade result
-
+    # Log the update cache result in JSON format
     - name: Log the update cache result
-      become: yes
       copy:
         content: |
           {
@@ -66,24 +48,57 @@
         mode: "0644"
         append: yes  # Append the result to the log file
 
-    - name: Log the upgrade result
-      become: yes
+    # Install security updates
+    - name: Install security updates
+      command: "apt-get upgrade -y --only-upgrade"
+      register: update_result
+      ignore_errors: yes
+      no_log: true
+
+    # Log the update result in JSON format
+    - name: Log the update result
       copy:
         content: |
           {
             "date": "{{ ansible_date_time.iso8601 }}",
             "hostname": "{{ inventory_hostname }}",
             "ip_address": "{{ system_ip }}",
-            "task": "Perform dist-upgrade",
-            "status": "{{ 'success' if apt_upgrade.rc == 0 else 'failure' }}",
-            "stdout": "{{ apt_upgrade.stdout | default('No output') }}",
-            "stderr": "{{ apt_upgrade.stderr | default('No error') }}",
-            "return_code": "{{ apt_upgrade.rc }}"
+            "task": "Install security updates",
+            "status": "{{ 'success' if update_result.rc == 0 else 'failure' }}",
+            "stdout": "{{ update_result.stdout | default('No output') }}",
+            "stderr": "{{ update_result.stderr | default('No error') }}",
+            "return_code": "{{ update_result.rc }}"
           }
         dest: "{{ log_file }}"
         mode: "0644"
         append: yes  # Append the result to the log file
 
-    - name: Notify success
+    # Check for upgradable packages (optional, for logging purposes)
+    - name: Check for upgradable packages
+      command: "apt list --upgradable"
+      register: upgradable_result
+      ignore_errors: yes
+      no_log: true
+
+    # Log the upgradable packages check result in JSON format
+    - name: Log upgradable packages check result
+      copy:
+        content: |
+          {
+            "date": "{{ ansible_date_time.iso8601 }}",
+            "hostname": "{{ inventory_hostname }}",
+            "ip_address": "{{ system_ip }}",
+            "task": "Check for upgradable packages",
+            "status": "{{ 'success' if upgradable_result.rc == 0 else 'failure' }}",
+            "stdout": "{{ upgradable_result.stdout | default('No upgradable packages') }}",
+            "stderr": "{{ upgradable_result.stderr | default('No error') }}",
+            "return_code": "{{ upgradable_result.rc }}"
+          }
+        dest: "{{ log_file }}"
+        mode: "0644"
+        append: yes  # Append the result to the log file
+
+    # Output the final status of the upgrade process
+    - name: Output final upgrade status
       debug:
-        msg: "System upgraded successfully and logs saved to {{ log_file }}"
+        msg: "Upgrade completed with status {{ update_result.rc }}"
