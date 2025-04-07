@@ -15,12 +15,12 @@
     - name: Confirm reboot was successful
       debug:
         msg: "Server {{ inventory_hostname }} has been successfully rebooted."
-      when: reboot_status.rc == 0  # Only run this task if the reboot succeeded
+      when: reboot_status.changed == true  # Only run this task if the reboot was successful
 
     - name: Handle reboot failure
       debug:
         msg: "Reboot failed on server {{ inventory_hostname }}."
-      when: reboot_status.rc != 0  # Only run if reboot failed
+      when: reboot_status.changed == false  # Only run if reboot failed
 
     - name: Wait for the server to come back online
       wait_for:
@@ -29,7 +29,7 @@
         timeout: 300  # Timeout of 5 minutes
         state: started  # Wait for the server to come online
       register: wait_for_status
-      when: reboot_status.rc == 0  # Only run if reboot was successful
+      when: reboot_status.changed == true  # Only run if reboot was successful
 
     - name: Confirm server is online (ping)
       ping:
