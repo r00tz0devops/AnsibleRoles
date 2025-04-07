@@ -14,7 +14,7 @@
         path: "{{ log_dir }}"
         state: directory
         mode: "0755"
-
+    
     - name: Ensure the log file exists
       become: yes
       file:
@@ -22,12 +22,12 @@
         state: touch
         mode: "0644"
 
-      name: Update APT cache
+    - name: Update package cache
+      become: yes
       apt:
         update_cache: yes
-      register: apt_update
-      ignore_errors: true
-        
+        cache_valid_time: 3600
+      ignore_errors: yes
 
     - name: List upgradable packages
       become: yes
@@ -68,7 +68,7 @@
       debug:
         msg: "Security updates applied successfully on {{ inventory_hostname }} and logged to {{ log_file }}."
 
-
+    # Optional Email Notification (if needed)
     # - name: Send log via email
     #   mail:
     #     host: "smtp.mailjet.com"
@@ -77,7 +77,7 @@
     #     password: "{{ mailjet_secret_key }}"
     #     to: "recipient@example.com"
     #     subject: "Security Updates Applied"
-    #     body: "{{ update_result.stdout }}"
+    #     body: "{{ upgrade_output.stdout }}"
     #     from: "your_email@example.com"
     #     smtp_tls: yes
-    #   when: update_result.stdout is defined
+    #   when: upgrade_output.stdout is defined
