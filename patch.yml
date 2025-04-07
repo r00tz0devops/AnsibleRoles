@@ -69,10 +69,11 @@
           hostname: "{{ inventory_hostname }}"
           ip_address: "{{ ansible_default_ipv4.address }}"
           task: "APT update"
-          status: "{{ 'success' if apt_update.rc == 0 else 'failure' }}"
+          status: "{{ 'success' if apt_update.rc is defined and apt_update.rc == 0 else 'failure' }}"
           stdout: "{{ apt_update.stdout | default('') }}"
           stderr: "{{ apt_update.stderr | default('') }}"
-          return_code: "{{ apt_update.rc | default(1) }}"
+          return_code: "{{ apt_update.rc | default('N/A') }}"
+      when: apt_update is defined
 
     - name: Append apt update result to log
       lineinfile:
@@ -80,6 +81,7 @@
         create: yes
         line: "{{ apt_update_log | to_json }}"
         insertafter: EOF
+      when: apt_update is defined
 
     - name: Install security updates
       command: apt-get upgrade -y --only-upgrade
@@ -93,10 +95,11 @@
           hostname: "{{ inventory_hostname }}"
           ip_address: "{{ ansible_default_ipv4.address }}"
           task: "Install security updates"
-          status: "{{ 'success' if upgrade_result.rc == 0 else 'failure' }}"
+          status: "{{ 'success' if upgrade_result.rc is defined and upgrade_result.rc == 0 else 'failure' }}"
           stdout: "{{ upgrade_result.stdout | default('') }}"
           stderr: "{{ upgrade_result.stderr | default('') }}"
-          return_code: "{{ upgrade_result.rc | default(1) }}"
+          return_code: "{{ upgrade_result.rc | default('N/A') }}"
+      when: upgrade_result is defined
 
     - name: Append upgrade result to log
       lineinfile:
@@ -104,3 +107,5 @@
         create: yes
         line: "{{ upgrade_log | to_json }}"
         insertafter: EOF
+      when: upgrade_result is defined
+
