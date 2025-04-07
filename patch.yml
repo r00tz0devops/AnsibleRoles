@@ -49,11 +49,21 @@
           task: "Collect system info and users"
           user_connections: "{{ user_info | default([]) }}"
 
-    - name: Append system/user info to log
+    - name: Append system/user info to Loki-compatible log
       lineinfile:
         path: "{{ log_file }}"
         create: yes
-        line: "{{ sysinfo | to_json }}"
+        line: |
+          {
+            "__timestamp__": "{{ ansible_date_time.iso8601 }}",
+            "__message__": "System Info",
+            "hostname": "{{ inventory_hostname }}",
+            "ip_address": "{{ ansible_default_ipv4.address }}",
+            "ubuntu_version": "{{ ansible_lsb.release }}",
+            "kernel_version": "{{ ansible_kernel }}",
+            "uptime": "{{ uptime_result.stdout | default('N/A') }}",
+            "user_connections": "{{ user_info | default([]) }}"
+          }
         insertafter: EOF
 
     - name: Ensure no other apt processes are running
@@ -87,20 +97,20 @@
       register: apt_update
       ignore_errors: true
 
-    - name: Log APT update result
+    - name: Log APT update result to Loki
       set_fact:
         apt_update_log:
-          date: "{{ ansible_date_time.iso8601 }}"
-          hostname: "{{ inventory_hostname }}"
-          ip_address: "{{ ansible_default_ipv4.address }}"
-          task: "APT update"
-          status: "{{ 'success' if apt_update.rc is defined and apt_update.rc == 0 else 'failure' }}"
-          stdout: "{{ apt_update.stdout | default('') }}"
-          stderr: "{{ apt_update.stderr | default('') }}"
-          return_code: "{{ apt_update.rc | default('N/A') }}"
+          "__timestamp__": "{{ ansible_date_time.iso8601 }}"
+          "__message__": "APT update"
+          "hostname": "{{ inventory_hostname }}"
+          "ip_address": "{{ ansible_default_ipv4.address }}"
+          "status": "{{ 'success' if apt_update.rc is defined and apt_update.rc == 0 else 'failure' }}"
+          "stdout": "{{ apt_update.stdout | default('') }}"
+          "stderr": "{{ apt_update.stderr | default('') }}"
+          "return_code": "{{ apt_update.rc | default('N/A') }}"
       when: apt_update is defined
 
-    - name: Append apt update result to log
+    - name: Append APT update result to Loki-compatible log
       lineinfile:
         path: "{{ log_file }}"
         create: yes
@@ -115,20 +125,20 @@
       register: upgrade_result
       ignore_errors: true
 
-    - name: Log upgrade result
+    - name: Log upgrade result to Loki
       set_fact:
         upgrade_log:
-          date: "{{ ansible_date_time.iso8601 }}"
-          hostname: "{{ inventory_hostname }}"
-          ip_address: "{{ ansible_default_ipv4.address }}"
-          task: "Install security updates"
-          status: "{{ 'success' if upgrade_result.rc is defined and upgrade_result.rc == 0 else 'failure' }}"
-          stdout: "{{ upgrade_result.stdout | default('') }}"
-          stderr: "{{ upgrade_result.stderr | default('') }}"
-          return_code: "{{ upgrade_result.rc | default('N/A') }}"
+          "__timestamp__": "{{ ansible_date_time.iso8601 }}"
+          "__message__": "Security updates installation"
+          "hostname": "{{ inventory_hostname }}"
+          "ip_address": "{{ ansible_default_ipv4.address }}"
+          "status": "{{ 'success' if upgrade_result.rc is defined and upgrade_result.rc == 0 else 'failure' }}"
+          "stdout": "{{ upgrade_result.stdout | default('') }}"
+          "stderr": "{{ upgrade_result.stderr | default('') }}"
+          "return_code": "{{ upgrade_result.rc | default('N/A') }}"
       when: upgrade_result is defined
 
-    - name: Append upgrade result to log
+    - name: Append upgrade result to Loki-compatible log
       lineinfile:
         path: "{{ log_file }}"
         create: yes
