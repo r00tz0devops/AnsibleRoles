@@ -3,12 +3,10 @@
   hosts: '{{ hostname }}'
   become: yes
   vars:
-    log_file: "/var/tmp/security_updates_log.json"  # Writable location for AWX
+    log_file: "/var/tmp/security_updates_log.json"
     system_ip: "{{ ansible_default_ipv4.address }}"
     ubuntu_version: "{{ ansible_lsb.release | default('unknown') }}"
     kernel_version: "{{ ansible_kernel }}"
-    uptime: "{{ ansible_uptime_seconds | int | community.general.seconds_to_human }}"
-
   tasks:
 
     - name: Ensure log file exists
@@ -16,6 +14,13 @@
         path: "{{ log_file }}"
         state: touch
         mode: "0664"
+
+    - name: Calculate human-readable uptime
+      set_fact:
+        human_uptime: >
+          {{ (ansible_uptime_seconds | int // 86400) }} days
+          {{ ((ansible_uptime_seconds | int % 86400) // 3600) }} hours
+          {{ ((ansible_uptime_seconds | int % 3600) // 60) }} minutes
 
     - name: Get logged-in users
       command: "who"
@@ -44,7 +49,7 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
-            "uptime": "{{ uptime }}",
+            "uptime": "{{ human_uptime }}",
             "task": "System Info and Logged-in Users",
             "user_connections": {{ user_info }}
           }
