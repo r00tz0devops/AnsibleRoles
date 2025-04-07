@@ -1,5 +1,5 @@
 ---
-- name: Apply security updates on Ubuntu 24.04
+- name: Apply security updates on Ubuntu 24.04 and log user connections
   hosts: '{{ hostname }}'
   become: yes
   become_method: sudo
@@ -23,6 +23,46 @@
         path: "{{ log_file }}"
         state: touch
         mode: "0644"
+
+    # Get logged in users and their IPs
+    - name: Get logged in users and their IPs
+      command: "who"
+      register: users_connected
+      ignore_errors: yes
+      no_log: true
+
+    # Parse the output to extract user information and concurrent connections
+    - name: Parse user connections and log them
+      set_fact:
+        user_info: |
+          {% set users = [] %}
+          {% for line in users_connected.stdout_lines %}
+            {% set parts = line.split() %}
+            {% if parts|length > 3 %}
+              {% set user = parts[0] %}
+              {% set ip = parts[2] %}
+              {% set users = users + [{'user': user, 'ip': ip}] %}
+            {% endif %}
+          {% endfor %}
+          {{ users }}
+      when: users_connected.stdout_lines is defined
+
+    # Log the user connections in JSON format
+    - name: Log user connections in JSON format
+      copy:
+        content: |
+          {
+            "date": "{{ ansible_date_time.iso8601 }}",
+            "hostname": "{{ inventory_hostname }}",
+            "ip_address": "{{ system_ip }}",
+            "ubuntu_version": "{{ ubuntu_version }}",
+            "kernel_version": "{{ kernel_version }}",
+            "task": "Log user connections",
+            "user_connections": "{{ user_info }}"
+          }
+        dest: "{{ log_file }}"
+        mode: "0644"
+        append: yes  # Append the result to the log file
 
     # Update package cache
     - name: Update package cache
