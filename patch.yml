@@ -2,6 +2,7 @@
 - name: Apply security updates and log info on Ubuntu 24.04
   hosts: '{{ hostname }}'
   become: yes
+  become_method: sudo
   vars:
     log_file: "/tmp/security_updates_log.json"
 
@@ -16,10 +17,12 @@
     - name: Gather uptime
       command: uptime -p
       register: uptime_result
+      ignore_errors: true
 
     - name: Get logged-in users
       command: who
       register: users_connected
+      ignore_errors: true
 
     - name: Parse user connection info
       set_fact:
@@ -32,6 +35,7 @@
             {% endif %}
           {% endfor %}
           {{ users }}
+      when: users_connected.stdout_lines is defined
 
     - name: Collect system info
       set_fact:
@@ -41,9 +45,9 @@
           ip_address: "{{ ansible_default_ipv4.address }}"
           ubuntu_version: "{{ ansible_lsb.release }}"
           kernel_version: "{{ ansible_kernel }}"
-          uptime: "{{ uptime_result.stdout }}"
+          uptime: "{{ uptime_result.stdout | default('N/A') }}"
           task: "Collect system info and users"
-          user_connections: "{{ user_info }}"
+          user_connections: "{{ user_info | default([]) }}"
 
     - name: Append system/user info to log
       lineinfile:
@@ -56,6 +60,7 @@
       apt:
         update_cache: yes
       register: apt_update
+      ignore_errors: true
 
     - name: Log APT update result
       set_fact:
@@ -67,7 +72,7 @@
           status: "{{ 'success' if apt_update.rc == 0 else 'failure' }}"
           stdout: "{{ apt_update.stdout | default('') }}"
           stderr: "{{ apt_update.stderr | default('') }}"
-          return_code: "{{ apt_update.rc }}"
+          return_code: "{{ apt_update.rc | default(1) }}"
 
     - name: Append apt update result to log
       lineinfile:
@@ -91,7 +96,7 @@
           status: "{{ 'success' if upgrade_result.rc == 0 else 'failure' }}"
           stdout: "{{ upgrade_result.stdout | default('') }}"
           stderr: "{{ upgrade_result.stderr | default('') }}"
-          return_code: "{{ upgrade_result.rc }}"
+          return_code: "{{ upgrade_result.rc | default(1) }}"
 
     - name: Append upgrade result to log
       lineinfile:
