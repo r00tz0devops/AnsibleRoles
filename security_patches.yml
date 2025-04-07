@@ -5,7 +5,7 @@
   become_method: sudo
   vars:
     log_dir: "/var/tmp/ansible_logs"
-    log_file: "{{ log_dir }}/security_updates.log"
+    log_file: "{{ log_dir }}/security_updates.json"
 
   tasks:
     - name: Ensure the log directory exists
@@ -49,29 +49,23 @@
       changed_when: "'upgraded' in upgrade_output.stdout or 'upgraded' in upgrade_output.stderr"
       ignore_errors: yes
 
-    - name: Log the update results
+    - name: Log the update results in JSON format
       become: yes
       copy:
         content: |
-          ===== Security Update Log =====
-          Date: {{ ansible_date_time.iso8601 }}
-          Host: {{ inventory_hostname }}
-          --------------------------------
-          Upgradable Packages:
-          {{ upgradable_list.stdout | default('N/A') }}
-
-          Security-related Updates:
-          {{ security_check.stdout | default('N/A') }}
-
-          Upgrade Result:
-          {{ upgrade_output.stdout | default('No output captured') }}
+          {
+            "date": "{{ ansible_date_time.iso8601 }}",
+            "hostname": "{{ inventory_hostname }}",
+            "upgradable_packages": "{{ upgradable_list.stdout | default('No upgradable packages found') }}",
+            "security_updates": "{{ security_check.stdout | default('No security updates available') }}",
+            "upgrade_result": "{{ upgrade_output.stdout | default('No updates were applied') }}"
+          }
         dest: "{{ log_file }}"
         mode: "0644"
 
     - name: Notify success
       debug:
         msg: "Security updates applied successfully on {{ inventory_hostname }} and logged to {{ log_file }}."
-
 
 
     # - name: Send log via email
