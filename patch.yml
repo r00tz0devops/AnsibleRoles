@@ -1,26 +1,20 @@
 ---
-- name: Apply security updates on Ubuntu 24.04 and log user connections
+- name: Apply security updates on Ubuntu 24.04 and log system info
   hosts: '{{ hostname }}'
   become: yes
   become_method: sudo
   vars:
-    log_file: "/var/log/ansible/security_updates_log.json"  # Define the log file location
-    system_ip: "{{ ansible_default_ipv4.address }}"  # Capture the system's IP address
-    ubuntu_version: "{{ ansible_lsb.release }}"  # Capture Ubuntu version
-    kernel_version: "{{ ansible_kernel }}"  # Capture Kernel version
+    log_file: "/tmp/security_updates_log.json"  # Safer path for AWX environments
+    system_ip: "{{ ansible_default_ipv4.address }}"
+    ubuntu_version: "{{ ansible_lsb.release }}"
+    kernel_version: "{{ ansible_kernel }}"
+
   tasks:
+    - name: Gather full system facts
+      ansible.builtin.setup:
 
-    # Ensure the /var/log/ansible directory exists with the right permissions
-    - name: Ensure the /var/log/ansible directory exists with the correct permissions
-      file:
-        path: "/var/log/ansible"
-        state: directory
-        mode: "0755"
-        owner: root
-        group: root
-
-    # Ensure log file exists or create it
     - name: Ensure log file exists
+      become: yes
       file:
         path: "{{ log_file }}"
         state: touch
@@ -28,14 +22,12 @@
         owner: root
         group: root
 
-    # Get logged in users and their IPs
     - name: Get logged in users and their IPs
       command: "who"
       register: users_connected
       ignore_errors: yes
       no_log: true
 
-    # Parse the output to extract user information and concurrent connections
     - name: Parse user connections and log them
       set_fact:
         user_info: |
@@ -51,8 +43,8 @@
           {{ users }}
       when: users_connected.stdout_lines is defined
 
-    # Log the user connections in JSON format
     - name: Log user connections in JSON format
+      become: yes
       copy:
         content: |
           {
@@ -61,17 +53,16 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
-            "uptime": "{{ ansible_facts.uptime.days }} days {{ ansible_facts.uptime.hours }} hours {{ ansible_facts.uptime.minutes }} minutes",
+            "uptime": "{{ ansible_uptime_seconds | int // 86400 }} days",
             "task": "Log user connections",
-            "user_connections": "{{ user_info }}"
+            "user_connections": {{ user_info | to_json }}
           }
         dest: "{{ log_file }}"
         mode: "0644"
         owner: root
         group: root
-        append: yes  # Append the result to the log file
+        append: yes
 
-    # Update package cache
     - name: Update package cache
       apt:
         update_cache: yes
@@ -79,8 +70,8 @@
       ignore_errors: yes
       no_log: true
 
-    # Log the update cache result in JSON format
     - name: Log the update cache result
+      become: yes
       copy:
         content: |
           {
@@ -89,28 +80,27 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
-            "uptime": "{{ ansible_facts.uptime.days }} days {{ ansible_facts.uptime.hours }} hours {{ ansible_facts.uptime.minutes }} minutes",
+            "uptime": "{{ ansible_uptime_seconds | int // 86400 }} days",
             "task": "Update package cache",
             "status": "{{ 'success' if apt_cache_update.rc == 0 else 'failure' }}",
-            "stdout": "{{ apt_cache_update.stdout | default('No output') }}",
-            "stderr": "{{ apt_cache_update.stderr | default('No error') }}",
-            "return_code": "{{ apt_cache_update.rc }}"
+            "stdout": {{ apt_cache_update.stdout | default('"No output"') | to_json }},
+            "stderr": {{ apt_cache_update.stderr | default('"No error"') | to_json }},
+            "return_code": {{ apt_cache_update.rc }}
           }
         dest: "{{ log_file }}"
         mode: "0644"
         owner: root
         group: root
-        append: yes  # Append the result to the log file
+        append: yes
 
-    # Install security updates
     - name: Install security updates
       command: "apt-get upgrade -y --only-upgrade"
       register: update_result
       ignore_errors: yes
       no_log: true
 
-    # Log the update result in JSON format
     - name: Log the update result
+      become: yes
       copy:
         content: |
           {
@@ -119,28 +109,27 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
-            "uptime": "{{ ansible_facts.uptime.days }} days {{ ansible_facts.uptime.hours }} hours {{ ansible_facts.uptime.minutes }} minutes",
+            "uptime": "{{ ansible_uptime_seconds | int // 86400 }} days",
             "task": "Install security updates",
             "status": "{{ 'success' if update_result.rc == 0 else 'failure' }}",
-            "stdout": "{{ update_result.stdout | default('No output') }}",
-            "stderr": "{{ update_result.stderr | default('No error') }}",
-            "return_code": "{{ update_result.rc }}"
+            "stdout": {{ update_result.stdout | default('"No output"') | to_json }},
+            "stderr": {{ update_result.stderr | default('"No error"') | to_json }},
+            "return_code": {{ update_result.rc }}
           }
         dest: "{{ log_file }}"
         mode: "0644"
         owner: root
         group: root
-        append: yes  # Append the result to the log file
+        append: yes
 
-    # Check for upgradable packages (optional, for logging purposes)
     - name: Check for upgradable packages
       command: "apt list --upgradable"
       register: upgradable_result
       ignore_errors: yes
       no_log: true
 
-    # Log the upgradable packages check result in JSON format
     - name: Log upgradable packages check result
+      become: yes
       copy:
         content: |
           {
@@ -149,20 +138,19 @@
             "ip_address": "{{ system_ip }}",
             "ubuntu_version": "{{ ubuntu_version }}",
             "kernel_version": "{{ kernel_version }}",
-            "uptime": "{{ ansible_facts.uptime.days }} days {{ ansible_facts.uptime.hours }} hours {{ ansible_facts.uptime.minutes }} minutes",
+            "uptime": "{{ ansible_uptime_seconds | int // 86400 }} days",
             "task": "Check for upgradable packages",
             "status": "{{ 'success' if upgradable_result.rc == 0 else 'failure' }}",
-            "stdout": "{{ upgradable_result.stdout | default('No upgradable packages') }}",
-            "stderr": "{{ upgradable_result.stderr | default('No error') }}",
-            "return_code": "{{ upgradable_result.rc }}"
+            "stdout": {{ upgradable_result.stdout | default('"No upgradable packages"') | to_json }},
+            "stderr": {{ upgradable_result.stderr | default('"No error"') | to_json }},
+            "return_code": {{ upgradable_result.rc }}
           }
         dest: "{{ log_file }}"
         mode: "0644"
         owner: root
         group: root
-        append: yes  # Append the result to the log file
+        append: yes
 
-    # Output the final status of the upgrade process
     - name: Output final upgrade status
       debug:
         msg: "Upgrade completed with status {{ update_result.rc }}"
