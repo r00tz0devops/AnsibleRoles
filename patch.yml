@@ -1,9 +1,89 @@
----    
-- hosts: '{{ hostname }}'
+---
+- name: Apply security updates and log everything in JSON format
+  hosts: "{{ hostname }}"
   become: yes
   become_method: sudo
+  vars:
+    log_dir: "/var/tmp/ansible_logs"
+    log_file: "{{ log_dir }}/security_updates_log.json"
+
   tasks:
-      - name: Update all packages on a Debian/Ubuntu
-        apt:
-            update_cache: yes
-            upgrade: dist
+    - name: Gather system facts
+      ansible.builtin.setup:
+
+    - name: Ensure the log directory exists
+      become: yes
+      file:
+        path: "{{ log_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Ensure the log file exists
+      become: yes
+      file:
+        path: "{{ log_file }}"
+        state: touch
+        mode: "0644"
+
+    - name: Get the system's IP address
+      set_fact:
+        system_ip: "{{ ansible_default_ipv4.address }}"
+
+    - name: Update package cache
+      become: yes
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      register: apt_cache_update
+      notify:
+        - Log the update cache result
+
+    - name: Perform dist-upgrade
+      become: yes
+      apt:
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+      register: apt_upgrade
+      notify:
+        - Log the upgrade result
+
+    - name: Log the update cache result
+      become: yes
+      copy:
+        content: |
+          {
+            "date": "{{ ansible_date_time.iso8601 }}",
+            "hostname": "{{ inventory_hostname }}",
+            "ip_address": "{{ system_ip }}",
+            "task": "Update package cache",
+            "status": "{{ 'success' if apt_cache_update.rc == 0 else 'failure' }}",
+            "stdout": "{{ apt_cache_update.stdout | default('No output') }}",
+            "stderr": "{{ apt_cache_update.stderr | default('No error') }}",
+            "return_code": "{{ apt_cache_update.rc }}"
+          }
+        dest: "{{ log_file }}"
+        mode: "0644"
+        append: yes  # Append the result to the log file
+
+    - name: Log the upgrade result
+      become: yes
+      copy:
+        content: |
+          {
+            "date": "{{ ansible_date_time.iso8601 }}",
+            "hostname": "{{ inventory_hostname }}",
+            "ip_address": "{{ system_ip }}",
+            "task": "Perform dist-upgrade",
+            "status": "{{ 'success' if apt_upgrade.rc == 0 else 'failure' }}",
+            "stdout": "{{ apt_upgrade.stdout | default('No output') }}",
+            "stderr": "{{ apt_upgrade.stderr | default('No error') }}",
+            "return_code": "{{ apt_upgrade.rc }}"
+          }
+        dest: "{{ log_file }}"
+        mode: "0644"
+        append: yes  # Append the result to the log file
+
+    - name: Notify success
+      debug:
+        msg: "System upgraded successfully and logs saved to {{ log_file }}"
