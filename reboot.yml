@@ -1,0 +1,25 @@
+---
+- name: Reboot Ubuntu Servers
+  hosts: "{{ hostname | default('all') }}"
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Reboot the server
+      reboot:
+        reboot_timeout: 600  # Timeout in seconds (10 minutes) for the system to reboot
+        test_command: uptime  # Command to check if the server is back online
+      register: reboot_status
+
+    - name: Ensure the server is back online
+      wait_for:
+        host: "{{ inventory_hostname }}"
+        port: 22  # Ensure SSH port is available
+        state: started
+        delay: 10  # Wait 10 seconds before retrying
+        timeout: 300  # Wait a maximum of 5 minutes for the server to be back online
+
+    - name: Confirm reboot was successful
+      debug:
+        msg: "Server {{ inventory_hostname }} has been successfully rebooted."
+      when: reboot_status.changed
