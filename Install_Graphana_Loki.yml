@@ -1,0 +1,64 @@
+---
+- name: Install and configure Loki and Grafana on Ubuntu 24.04
+  hosts: '{{ hostname }}'
+  become: yes
+  become_method: sudo
+  tasks:
+
+    - name: Add Grafana package repository GPG key
+      apt_key:
+        url: https://packages.grafana.com/gpg.key
+        state: present
+      register: add_repo_key
+
+    - name: Add Grafana repository to APT
+      apt_repository:
+        repo: 'deb https://packages.grafana.com/oss/deb stable main'
+        state: present
+      when: add_repo_key is succeeded
+
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+
+    - name: Install Loki
+      apt:
+        name: loki
+        state: present
+
+    - name: Install Grafana
+      apt:
+        name: grafana
+        state: present
+
+    - name: Enable and start Loki service
+      systemd:
+        name: loki
+        enabled: yes
+        state: started
+
+    - name: Enable and start Grafana service
+      systemd:
+        name: grafana-server
+        enabled: yes
+        state: started
+
+    - name: Check Loki service status
+      systemd:
+        name: loki
+        state: started
+        enabled: yes
+      register: loki_status
+
+    - name: Check Grafana service status
+      systemd:
+        name: grafana-server
+        state: started
+        enabled: yes
+      register: grafana_status
+
+    - name: Show Loki and Grafana status
+      debug:
+        msg: |
+          Loki service is {{ loki_status.state }} and enabled: {{ loki_status.enabled }}
+          Grafana service is {{ grafana_status.state }} and enabled: {{ grafana_status.enabled }}
