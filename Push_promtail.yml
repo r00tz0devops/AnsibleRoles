@@ -32,11 +32,11 @@
     - name: Move Promtail binary to /usr/local/bin
       command:
         cmd: mv /tmp/promtail-linux-amd64 /usr/local/bin/promtail
-        creates: "/usr/local/bin/promtail"
+        creates: "{{ promtail_bin }}"
 
     - name: Make Promtail executable
       file:
-        path: "/usr/local/bin/promtail"
+        path: "{{ promtail_bin }}"
         mode: '0755'
 
     - name: Create Promtail configuration directory
@@ -66,10 +66,10 @@
                     - localhost
                   labels:
                     job: varlogs
-                    __path__:
-                      - /var/log/*.log
-                      - /var/log/syslog
-                      - /tmp/security_updates_log.json
+                    __path__: |
+                      /var/log/*.log
+                      /var/log/syslog
+                      /tmp/security_updates_log.json
         mode: '0644'
 
     - name: Create Promtail systemd service file
@@ -93,13 +93,14 @@
       systemd:
         daemon_reload: yes
 
-    - name: Enable Promtail service to start on boot
+    - name: Validate Promtail config before starting
+      command: "{{ promtail_bin }} -config.file={{ promtail_config_file }} -log.level=debug -dry-run"
+      register: promtail_config_test
+      failed_when: "'error' in promtail_config_test.stderr.lower()"
+      ignore_errors: false
+
+    - name: Enable and start Promtail service
       systemd:
         name: promtail
         enabled: yes
-        state: started
-
-    - name: Ensure Promtail service is running
-      systemd:
-        name: promtail
         state: started
