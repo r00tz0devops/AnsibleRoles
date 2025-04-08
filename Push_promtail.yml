@@ -1,60 +1,66 @@
 ---
 - name: Install and configure Promtail to send logs to Loki
-  hosts: '{{ hostname | default("all") }}'
-  become: true
+  hosts: "{{ hostname }}"
+  become: yes
+  become_method: sudo
   vars:
-    promtail_version: "2.9.4"
-    loki_server_url: "http://10.0.16.252:3100/loki/api/v1/push"
+    promtail_version: "2.7.1"
     promtail_bin: "/usr/local/bin/promtail"
-    promtail_config_path: "/etc/promtail-config.yaml"
-    promtail_service_path: "/etc/systemd/system/promtail.service"
+    promtail_config_file: "/etc/promtail/config.yml"
+    loki_url: "http://10.0.16.252:3100/loki/api/v1/push"
 
   tasks:
-    - name: Install dependencies
+    - name: Ensure required packages are installed (unzip, curl)
       apt:
-        name: [curl, unzip]
+        name:
+          - unzip
+          - curl
         state: present
         update_cache: yes
 
-    - name: Download Promtail
+    - name: Download Promtail binary
       get_url:
         url: "https://github.com/grafana/loki/releases/download/v{{ promtail_version }}/promtail-linux-amd64.zip"
-        dest: /tmp/promtail.zip
-        mode: '0644'
+        dest: "/tmp/promtail-linux-amd64.zip"
 
     - name: Unzip Promtail binary
       unarchive:
-        src: /tmp/promtail.zip
-        dest: /usr/local/bin/
+        src: "/tmp/promtail-linux-amd64.zip"
+        dest: "/tmp"
         remote_src: yes
 
-    - name: Rename promtail binary
-      command: mv /usr/local/bin/promtail-linux-amd64 {{ promtail_bin }}
-      args:
-        creates: "{{ promtail_bin }}"
+    - name: Move Promtail binary to /usr/local/bin
+      command:
+        cmd: mv /tmp/promtail-linux-amd64 /usr/local/bin/promtail
+        creates: "/usr/local/bin/promtail"
 
     - name: Make Promtail executable
       file:
-        path: "{{ promtail_bin }}"
+        path: "/usr/local/bin/promtail"
         mode: '0755'
-        state: file
 
-    - name: Create Promtail config file
+    - name: Create Promtail configuration directory
+      file:
+        path: "/etc/promtail"
+        state: directory
+        mode: '0755'
+
+    - name: Create Promtail configuration file
       copy:
-        dest: "{{ promtail_config_path }}"
+        dest: "{{ promtail_config_file }}"
         content: |
           server:
             http_listen_port: 9080
-            grpc_listen_port: 0
+            grpc_listen_port: 9095
 
           positions:
-            filename: /var/log/positions.yaml
+            filename: /tmp/positions.yaml
 
           clients:
-            - url: "{{ loki_server_url }}"
+            - url: "{{ loki_url }}"
 
           scrape_configs:
-            - job_name: system
+            - job_name: system_logs
               static_configs:
                 - targets:
                     - localhost
@@ -64,25 +70,36 @@
                       - /var/log/*.log
                       - /var/log/syslog
                       - /tmp/security_updates_log.json
+        mode: '0644'
 
-    - name: Create Promtail systemd service
+    - name: Create Promtail systemd service file
       copy:
-        dest: "{{ promtail_service_path }}"
+        dest: "/etc/systemd/system/promtail.service"
         content: |
           [Unit]
-          Description=Promtail service
+          Description=Promtail - Log shipping agent for Loki
           After=network.target
 
           [Service]
-          ExecStart={{ promtail_bin }} -config.file={{ promtail_config_path }}
-          Restart=always
+          ExecStart={{ promtail_bin }} -config.file={{ promtail_config_file }}
+          Restart=on-failure
+          User=root
 
           [Install]
           WantedBy=multi-user.target
+        mode: '0644'
 
-    - name: Reload systemd and start Promtail
+    - name: Reload systemd to pick up the Promtail service
       systemd:
         daemon_reload: yes
+
+    - name: Enable Promtail service to start on boot
+      systemd:
         name: promtail
         enabled: yes
+        state: started
+
+    - name: Ensure Promtail service is running
+      systemd:
+        name: promtail
         state: started
