@@ -5,6 +5,9 @@
   become_method: sudo
   tasks:
 
+    - name: Gather facts
+      ansible.builtin.setup:
+
     - name: Set the timezone to Canada/Montreal using timedatectl
       command: timedatectl set-timezone America/Montreal
 
