@@ -5,9 +5,8 @@
   become_method: sudo
   tasks:
 
-    - name: Set the timezone to Canada/Montreal
-      timezone:
-        name: "America/Montreal"
+    - name: Set the timezone to Canada/Montreal using timedatectl
+      command: timedatectl set-timezone America/Montreal
 
     - name: Ensure ntp is installed and started (for time synchronization)
       apt:
