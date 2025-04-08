@@ -1,6 +1,6 @@
 ---
 - name: Install and configure Loki and Grafana on Ubuntu 24.04
-  hosts: Graphana
+  hosts: '{{ hostname }}'
   become: yes
   become_method: sudo
   tasks:
