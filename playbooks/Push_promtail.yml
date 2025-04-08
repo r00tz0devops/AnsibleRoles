@@ -1,0 +1,84 @@
+---
+- name: Install and configure Promtail to send logs to Loki
+  hosts: '{{ hostname | default("all") }}'
+  become: true
+  vars:
+    promtail_version: "2.9.4"
+    loki_server_url: "http://10.0.16.252:3100/loki/api/v1/push"  # Update if your Loki is elsewhere
+    promtail_bin: "/usr/local/bin/promtail"
+    promtail_config_path: "/etc/promtail-config.yaml"
+    promtail_service_path: "/etc/systemd/system/promtail.service"
+
+  tasks:
+    - name: Install dependencies
+      apt:
+        name: [curl, unzip]
+        state: present
+        update_cache: yes
+
+    - name: Download Promtail
+      get_url:
+        url: "https://github.com/grafana/loki/releases/download/v{{ promtail_version }}/promtail-linux-amd64.zip"
+        dest: /tmp/promtail.zip
+        mode: '0644'
+
+    - name: Unzip Promtail binary
+      unarchive:
+        src: /tmp/promtail.zip
+        dest: /usr/local/bin/
+        remote_src: yes
+        creates: "{{ promtail_bin }}"
+
+    - name: Make Promtail executable
+      file:
+        path: "{{ promtail_bin }}"
+        mode: '0755'
+        state: file
+
+    - name: Create Promtail config file
+      copy:
+        dest: "{{ promtail_config_path }}"
+        content: |
+          server:
+            http_listen_port: 9080
+            grpc_listen_port: 0
+
+          positions:
+            filename: /var/log/positions.yaml
+
+          clients:
+            - url: "{{ loki_server_url }}"
+
+          scrape_configs:
+            - job_name: system
+              static_configs:
+                - targets:
+                    - localhost
+                  labels:
+                    job: varlogs
+                    __path__: 
+                      - /var/log/*.log
+                      - /var/log/syslog
+                      - /tmp/security_updates_log.json
+
+    - name: Create Promtail systemd service
+      copy:
+        dest: "{{ promtail_service_path }}"
+        content: |
+          [Unit]
+          Description=Promtail service
+          After=network.target
+
+          [Service]
+          ExecStart={{ promtail_bin }} -config.file={{ promtail_config_path }}
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd and start Promtail
+      systemd:
+        daemon_reload: yes
+        name: promtail
+        enabled: yes
+        state: started
