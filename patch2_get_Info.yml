@@ -1,0 +1,126 @@
+---
+- name: Apply security updates and log info on Ubuntu 24.04
+  hosts: '{{ hostname }}'
+  become: yes
+  become_method: sudo
+  vars:
+    log_file: "/tmp/security_updates_log.json"
+
+  tasks:
+
+    - name: Ensure the log file exists
+      file:
+        path: "{{ log_file }}"
+        state: touch
+        mode: "0664"
+
+    - name: Gather uptime
+      command: uptime -p
+      register: uptime_result
+      ignore_errors: true
+
+    - name: Get logged-in users
+      command: who
+      register: users_connected
+      ignore_errors: true
+
+    - name: Parse user connection info
+      set_fact:
+        user_info: |
+          {% set users = [] %}
+          {% for line in users_connected.stdout_lines %}
+            {% set parts = line.split() %}
+            {% if parts|length > 4 %}
+              {% set users = users + [{'user': parts[0], 'ip': parts[4] | replace('(', '') | replace(')', '') }] %}
+            {% endif %}
+          {% endfor %}
+          {{ users }}
+      when: users_connected.stdout_lines is defined
+
+    - name: Collect system info
+      set_fact:
+        sysinfo:
+          date: "{{ ansible_date_time.iso8601 }}"
+          hostname: "{{ ansible_hostname }}"
+          ip_address: "{{ ansible_default_ipv4.address }}"
+          all_ip_addresses: "{{ ansible_all_ipv4_addresses }}"
+          ubuntu_version: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+          kernel_version: "{{ ansible_kernel }}"
+          uptime: "{{ uptime_result.stdout | default('N/A') }}"
+          uptime_seconds: "{{ ansible_uptime_seconds | default('N/A') }}"
+          architecture: "{{ ansible_architecture }}"
+          memory_info:
+            total_mb: "{{ ansible_memtotal_mb }}"
+            full: "{{ ansible_memory_mb }}"
+          cpu_info:
+            processor: "{{ ansible_processor }}"
+            cores: "{{ ansible_processor_cores }}"
+          default_gateway: "{{ ansible_default_ipv4.gateway }}"
+          mount_points: "{{ ansible_mounts }}"
+          network_interfaces: "{{ ansible_interfaces }}"
+          task: "Collect system info and users"
+          user_connections: "{{ user_info | default([]) }}"
+
+    - name: Append system/user info to Loki-compatible log
+      lineinfile:
+        path: "{{ log_file }}"
+        create: yes
+        line: "{{ sysinfo | to_json }}"
+        insertafter: EOF
+
+    - name: Update APT cache
+      become: yes
+      become_method: sudo
+      apt:
+        update_cache: yes
+      register: apt_update
+      ignore_errors: true
+
+    - name: Log APT update result to Loki
+      set_fact:
+        apt_update_log:
+          "__timestamp__": "{{ ansible_date_time.iso8601 }}"
+          "__message__": "APT update"
+          "hostname": "{{ inventory_hostname }}"
+          "ip_address": "{{ ansible_default_ipv4.address }}"
+          "status": "{{ 'success' if apt_update.rc is defined and apt_update.rc == 0 else 'failure' }}"
+          "stdout": "{{ apt_update.stdout | default('') }}"
+          "stderr": "{{ apt_update.stderr | default('') }}"
+          "return_code": "{{ apt_update.rc | default('N/A') }}"
+      when: apt_update is defined
+
+    - name: Append APT update result to Loki-compatible log
+      lineinfile:
+        path: "{{ log_file }}"
+        create: yes
+        line: "{{ apt_update_log | to_json }}"
+        insertafter: EOF
+      when: apt_update is defined
+
+    - name: Install security updates
+      become: yes
+      become_method: sudo
+      command: apt-get upgrade -y --only-upgrade
+      register: upgrade_result
+      ignore_errors: true
+
+    - name: Log upgrade result to Loki
+      set_fact:
+        upgrade_log:
+          "__timestamp__": "{{ ansible_date_time.iso8601 }}"
+          "__message__": "Security updates installation"
+          "hostname": "{{ inventory_hostname }}"
+          "ip_address": "{{ ansible_default_ipv4.address }}"
+          "status": "{{ 'success' if upgrade_result.rc is defined and upgrade_result.rc == 0 else 'failure' }}"
+          "stdout": "{{ upgrade_result.stdout | default('') }}"
+          "stderr": "{{ upgrade_result.stderr | default('') }}"
+          "return_code": "{{ upgrade_result.rc | default('N/A') }}"
+      when: upgrade_result is defined
+
+    - name: Append upgrade result to Loki-compatible log
+      lineinfile:
+        path: "{{ log_file }}"
+        create: yes
+        line: "{{ upgrade_log | to_json }}"
+        insertafter: EOF
+      when: upgrade_result is defined
