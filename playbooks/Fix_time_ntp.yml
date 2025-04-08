@@ -23,9 +23,19 @@
         state: started
         enabled: yes
 
+    - name: Check if ansible_date_time fact is available
+      debug:
+        msg: "ansible_date_time fact is available"
+      when: ansible_facts.get('ansible_date_time') is not none
+
+    - name: Set a variable for the current timezone
+      set_fact:
+        current_timezone: "{{ ansible_facts['ansible_date_time']['tz'] }}"
+      when: ansible_facts.get('ansible_date_time') is not none
+
     - name: Synchronize the system time using NTP
       command: ntpdate pool.ntp.org
-      when: ansible_facts['ansible_date_time']['tz'] != 'America/Montreal'
+      when: ansible_facts.get('ansible_date_time') is not none and ansible_facts['ansible_date_time']['tz'] != 'America/Montreal'
 
     - name: Verify the time
       command: date
