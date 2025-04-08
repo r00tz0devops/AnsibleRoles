@@ -7,9 +7,18 @@
     promtail_version: "2.7.1"  # Replace with the desired Promtail version
     promtail_bin: "/usr/local/bin/promtail"
     promtail_config_file: "/etc/promtail/config.yml"
-    loki_url: "http://10.0.16.252:3100/loki/api/v1/push"  # Replace with your Loki server URL
+    loki_url: "http://http://10.0.16.252:3100/loki/api/v1/push"  # Replace with your Loki server URL
 
   tasks:
+    - name: Ensure required packages are installed (unzip, zipinfo, curl)
+      apt:
+        name:
+          - unzip
+          - zipinfo
+          - curl
+        state: present
+        update_cache: yes
+
     - name: Download Promtail binary
       get_url:
         url: "https://github.com/grafana/loki/releases/download/v{{ promtail_version }}/promtail-linux-amd64.zip"
