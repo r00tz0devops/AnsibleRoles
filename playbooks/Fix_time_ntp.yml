@@ -1,0 +1,34 @@
+---
+- name: Set system time and timezone to Canada/Montreal
+  hosts: "{{ hostname }}"  # Replace with your hostname or inventory group name
+  become: yes
+  become_method: sudo
+  tasks:
+
+    - name: Set the timezone to Canada/Montreal
+      timezone:
+        name: "America/Montreal"
+
+    - name: Ensure ntp is installed and started (for time synchronization)
+      apt:
+        name: ntp
+        state: present
+        update_cache: yes
+
+    - name: Ensure NTP service is enabled and started
+      service:
+        name: ntp
+        state: started
+        enabled: yes
+
+    - name: Synchronize the system time using NTP
+      command: ntpdate pool.ntp.org
+      when: ansible_facts['ansible_date_time']['tz'] != 'America/Montreal'
+
+    - name: Verify the time
+      command: date
+      register: system_time
+
+    - name: Print the system time to verify
+      debug:
+        var: system_time.stdout
