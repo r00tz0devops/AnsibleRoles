@@ -1,0 +1,30 @@
+---
+- name: Configure rsyslog to use traditional log timestamp format
+  hosts: "{{ hostname }}"  # Replace with your inventory group or host name
+  become: yes
+  become_method: sudo
+
+  tasks:
+    - name: Ensure rsyslog is installed
+      apt:
+        name: rsyslog
+        state: present
+        update_cache: yes
+
+    - name: Modify rsyslog configuration to use traditional timestamp format
+      lineinfile:
+        path: /etc/rsyslog.conf
+        regexp: '^#\$ActionFileDefaultTemplate'
+        line: '$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat'
+        create: yes
+
+    - name: Restart rsyslog service to apply changes
+      systemd:
+        name: rsyslog
+        state: restarted
+        enabled: yes
+
+    - name: Verify rsyslog is running
+      systemd:
+        name: rsyslog
+        state: started
