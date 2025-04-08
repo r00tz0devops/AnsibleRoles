@@ -1,0 +1,43 @@
+---
+- name: Set time zone to America/Montreal and configure Loki time format
+  hosts: "{{ hostname }}"  # Replace with your inventory group or host name
+  become: yes
+  become_method: sudo
+
+  vars:
+    loki_config_file: "/etc/loki/config.yml"
+    desired_timezone: "America/Montreal"
+
+  tasks:
+    - name: Ensure the system timezone is set to America/Montreal
+      ansible.builtin.command:
+        cmd: timedatectl set-timezone {{ desired_timezone }}
+      register: timezone_output
+      ignore_errors: yes
+
+    - name: Check current time zone
+      debug:
+        msg: "Current timezone: {{ lookup('pipe', 'timedatectl show --property=Timezone --value') }}"
+
+    - name: Verify the time zone change was successful
+      debug:
+        msg: "Time zone successfully set to {{ desired_timezone }}"
+      when: timezone_output.rc == 0
+
+    - name: Ensure Loki is configured to use local time
+      lineinfile:
+        path: "{{ loki_config_file }}"
+        regexp: '^#?timezone'
+        line: 'timezone: "America/Montreal"'
+        create: yes
+
+    - name: Restart Loki service to apply changes
+      systemd:
+        name: loki
+        state: restarted
+        enabled: yes
+
+    - name: Verify Loki service is running
+      systemd:
+        name: loki
+        state: started
