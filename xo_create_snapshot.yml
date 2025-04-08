@@ -1,0 +1,68 @@
+---
+- name: Create Xen Orchestra snapshot before OS upgrade
+  hosts: localhost
+  gather_facts: no
+  vars:
+    xo_url: "https://your-xo-url.com"   # Replace with your XO URL
+    xo_username: "your_username"        # Or use token auth
+    xo_password: "your_password"
+    vm_name: "my-ubuntu-vm"             # Name label of the VM
+    snapshot_name: "pre-update-snapshot-{{ lookup('pipe', 'date +%Y%m%d%H%M') }}"
+
+  tasks:
+
+    - name: Get authentication token
+      uri:
+        url: "{{ xo_url }}/api/"
+        method: POST
+        headers:
+          content-type: application/json
+        body_format: json
+        body:
+          method: "session.signIn"
+          params:
+            email: "{{ xo_username }}"
+            password: "{{ xo_password }}"
+      register: xo_auth
+
+    - name: Save XO token
+      set_fact:
+        xo_token: "{{ xo_auth.json.result.id }}"
+
+    - name: Get VM UUID by name
+      uri:
+        url: "{{ xo_url }}/api/"
+        method: POST
+        headers:
+          content-type: application/json
+          authorization: "Bearer {{ xo_token }}"
+        body_format: json
+        body:
+          method: "vm.getAll"
+          params: {}
+      register: vm_list
+
+    - name: Find VM ID from list
+      set_fact:
+        vm_id: "{{ item.id }}"
+      loop: "{{ vm_list.json.result }}"
+      when: item.name_label == vm_name
+
+    - name: Create VM snapshot
+      uri:
+        url: "{{ xo_url }}/api/"
+        method: POST
+        headers:
+          content-type: application/json
+          authorization: "Bearer {{ xo_token }}"
+        body_format: json
+        body:
+          method: "vm.snapshot"
+          params:
+            id: "{{ vm_id }}"
+            name_label: "{{ snapshot_name }}"
+      register: snapshot_result
+
+    - name: Show snapshot info
+      debug:
+        msg: "Snapshot created with ID {{ snapshot_result.json.result }}"
