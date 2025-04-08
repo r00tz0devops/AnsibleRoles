@@ -7,7 +7,7 @@
     promtail_version: "2.7.1"  # Replace with the desired Promtail version
     promtail_bin: "/usr/local/bin/promtail"
     promtail_config_file: "/etc/promtail/config.yml"
-    loki_url: "http://<LOKI_SERVER_IP>:3100/loki/api/v1/push"  # Replace with your Loki server URL
+    loki_url: "http://10.0.16.252:3100/loki/api/v1/push"  # Replace with your Loki server URL
 
   tasks:
     - name: Download Promtail binary
