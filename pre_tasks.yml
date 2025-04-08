@@ -1,0 +1,10 @@
+- name: Install required tools in job
+  hosts: localhost
+  gather_facts: no
+  pre_tasks:
+    - name: Install community.general collection
+      command: ansible-galaxy collection install community.general
+
+    - name: Install requests Python module
+      pip:
+        name: requests
