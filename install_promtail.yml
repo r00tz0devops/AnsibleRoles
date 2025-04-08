@@ -1,0 +1,94 @@
+---
+- name: Install and configure Promtail to send logs to Loki
+  hosts: "{{ hostname }}"  # Replace with your host or group name
+  become: yes
+  become_method: sudo
+  vars:
+    promtail_version: "2.7.1"  # Replace with the desired Promtail version
+    promtail_bin: "/usr/local/bin/promtail"
+    promtail_config_file: "/etc/promtail/config.yml"
+    loki_url: "http://<LOKI_SERVER_IP>:3100/loki/api/v1/push"  # Replace with your Loki server URL
+
+  tasks:
+    - name: Download Promtail binary
+      get_url:
+        url: "https://github.com/grafana/loki/releases/download/v{{ promtail_version }}/promtail-linux-amd64.zip"
+        dest: "/tmp/promtail-linux-amd64.zip"
+
+    - name: Unzip Promtail binary
+      unarchive:
+        src: "/tmp/promtail-linux-amd64.zip"
+        dest: "/tmp"
+        remote_src: yes
+
+    - name: Move Promtail binary to /usr/local/bin
+      command:
+        cmd: mv /tmp/promtail-linux-amd64 /usr/local/bin/promtail
+        creates: "/usr/local/bin/promtail"
+
+    - name: Make Promtail executable
+      file:
+        path: "/usr/local/bin/promtail"
+        mode: '0755'
+
+    - name: Create Promtail configuration directory
+      file:
+        path: "/etc/promtail"
+        state: directory
+        mode: '0755'
+
+    - name: Create Promtail configuration file
+      copy:
+        dest: "{{ promtail_config_file }}"
+        content: |
+          server:
+            http_listen_port: 9080
+            grpc_listen_port: 9095
+
+          positions:
+            filename: /tmp/positions.yaml  # File to track last-read log position
+
+          clients:
+            - url: "{{ loki_url }}"
+
+          scrape_configs:
+            - job_name: system_logs
+              static_configs:
+                - targets:
+                    - localhost
+                  labels:
+                    job: varlogs
+                    __path__: /var/log/*.log  # Collect all log files from /var/log
+        mode: '0644'
+
+    - name: Create Promtail systemd service file
+      copy:
+        dest: "/etc/systemd/system/promtail.service"
+        content: |
+          [Unit]
+          Description=Promtail - Log shipping agent for Loki
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/local/bin/promtail -config.file={{ promtail_config_file }}
+          Restart=on-failure
+          User=root
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
+    - name: Reload systemd to pick up the Promtail service
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable Promtail service to start on boot
+      systemd:
+        name: promtail
+        enabled: yes
+        state: started
+
+    - name: Ensure Promtail service is running
+      systemd:
+        name: promtail
+        state: started
