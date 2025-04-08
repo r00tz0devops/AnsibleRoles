@@ -10,14 +10,19 @@
 
   tasks:
     - name: Ensure the system timezone is set to America/Montreal
-      ansible.builtin.command:
+      command:
         cmd: timedatectl set-timezone {{ desired_timezone }}
       register: timezone_output
       ignore_errors: yes
 
     - name: Check current time zone
+      command:
+        cmd: timedatectl show --property=Timezone --value
+      register: current_timezone
+
+    - name: Display current time zone
       debug:
-        msg: "Current timezone: {{ lookup('pipe', 'timedatectl show --property=Timezone --value') }}"
+        msg: "Current timezone is: {{ current_timezone.stdout }}"
 
     - name: Verify the time zone change was successful
       debug:
