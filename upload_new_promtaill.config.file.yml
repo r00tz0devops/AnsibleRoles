@@ -1,0 +1,45 @@
+---
+- name: Upload Promtail configuration file
+  hosts: "{{ hostname }}"  # Replace with your host or group name
+  become: yes
+  become_method: sudo
+  vars:
+    promtail_config_file: "/etc/promtail/config.yml"
+    promtail_config_content: |
+      server:
+        http_listen_port: 9080
+        grpc_listen_port: 9095
+
+      positions:
+        filename: /tmp/positions.yaml
+
+      clients:
+        - url: "http://10.0.16.252:3100/loki/api/v1/push"
+
+      scrape_configs:
+        - job_name: system_logs
+          static_configs:
+            - targets:
+                - localhost
+              labels:
+                job: varlogs
+                __path__: /var/log/*.log,/var/log/syslog,/tmp/security_updates_log.json
+
+  tasks:
+    - name: Ensure Promtail configuration directory exists
+      file:
+        path: "/etc/promtail"
+        state: directory
+        mode: '0755'
+
+    - name: Upload Promtail configuration file
+      copy:
+        dest: "{{ promtail_config_file }}"
+        content: "{{ promtail_config_content }}"
+        mode: '0644'
+
+    - name: Restart Promtail service
+      systemd:
+        name: promtail
+        state: restarted
+        enabled: yes
