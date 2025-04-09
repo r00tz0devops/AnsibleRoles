@@ -35,6 +35,21 @@
         state: present
       when: ansible_distribution == "Ubuntu"
 
+    - name: Copy landscape server certificates to /etc/ssl/certs (Ubuntu only)
+      copy:
+        src: "{{ item }}"
+        dest: "/etc/ssl/certs/{{ item }}"
+        mode: '0644'
+      with_items:
+        - landscape_server.pem
+        - landscape_server_ca.crt
+        - ca-certificates.crt
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Update CA certificates (Ubuntu only)
+      command: update-ca-certificates
+      when: ansible_distribution == "Ubuntu"
+
     - name: Get hostname (Ubuntu only)
       command: hostname
       register: hostname_result
