@@ -1,12 +1,15 @@
 ---
 - name: Register Ubuntu clients to Landscape server
-  osts: "{{ hostname }}"  # Replace with your host or group name
+  hosts: "{{ hostname }}"  # Replace with your host or group name
   become: yes
   become_method: sudo
   vars:
     landscape_account_name: standalone
     landscape_url: https://10.0.16.90/message-system
     landscape_ping_url: http://10.0.16.90/ping
+    registration_key: C12eq3PMGTYxCWLZd1bEVXzX64GfSt
+    script_users: pablo
+    access_group: pablo
 
   tasks:
     - name: Skip non-Ubuntu systems (info only)
@@ -41,9 +44,12 @@
       command: >
         landscape-config
         --computer-title "{{ hostname_result.stdout }}"
-        --account-name {{ landscape_account_name }}
-        --url {{ landscape_url }}
-        --ping-url {{ landscape_ping_url }}
+        --account-name "{{ landscape_account_name }}"
+        --url "{{ landscape_url }}"
+        --ping-url "{{ landscape_ping_url }}"
+        --registration-key "{{ registration_key }}"
+        --script-users "{{ script_users }}"
+        --access-group "{{ access_group }}"
       args:
         creates: /etc/landscape/client.conf
       when: ansible_distribution == "Ubuntu"
