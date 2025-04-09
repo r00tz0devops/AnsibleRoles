@@ -9,11 +9,12 @@
     landscape_ping_url: http://10.0.16.90/ping
 
   tasks:
-    - name: Enable 'universe' repository
+    - name: Enable 'universe' repo on Ubuntu only
       apt_repository:
         repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
         state: present
         filename: universe
+      when: ansible_distribution == "Ubuntu"
 
     - name: Update apt cache
       apt:
@@ -36,7 +37,7 @@
         --url {{ landscape_url }}
         --ping-url {{ landscape_ping_url }}
       args:
-        creates: /etc/landscape/client.conf  # Prevent re-running if already registered
+        creates: /etc/landscape/client.conf
 
     - name: Start landscape-client service
       service:
