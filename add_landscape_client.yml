@@ -10,12 +10,24 @@
     registration_key: C12eq3PMGTYxCWLZd1bEVXzX64GfSt
     script_users: pablo
     access_group: pablo
+    min_required_space_mb: 200  # Minimum disk space required (in MB)
 
   tasks:
-    - name: Skip non-Ubuntu systems (info only)
-      debug:
-        msg: "Skipping {{ inventory_hostname }} ({{ ansible_distribution }}) — not Ubuntu."
-      when: ansible_distribution != "Ubuntu"
+    - name: Check available disk space on /
+      shell: df --output=avail -m / | tail -1
+      register: disk_free
+      changed_when: false
+
+    - name: Fail if available disk space is below threshold
+      fail:
+        msg: "Not enough disk space available ({{ disk_free.stdout }}MB). Minimum required: {{ min_required_space_mb }}MB."
+      when: disk_free.stdout | int < min_required_space_mb
+
+    - name: Free up space - clean apt cache
+      apt:
+        autoclean: yes
+        autoremove: yes
+      when: ansible_distribution == "Ubuntu"
 
     - name: Enable 'universe' repo (Ubuntu only)
       apt_repository:
