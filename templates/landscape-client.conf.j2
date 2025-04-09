@@ -1,0 +1,11 @@
+[client]
+log_level = info
+url = {{ landscape_url }}
+ping_url = {{ landscape_ping_url }}
+data_path = /var/lib/landscape/client
+computer_title = {{ inventory_hostname }}
+account_name = {{ landscape_account_name }}
+registration_key = {{ registration_key }}
+script_users = {{ script_users }}
+include_manager_plugins =
+access_group = {{ access_group }}
