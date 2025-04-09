@@ -10,7 +10,7 @@
     registration_key: C12eq3PMGTYxCWLZd1bEVXzX64GfSt
     script_users: pablo
     access_group: pablo
-    min_required_space_mb: 200  # Minimum disk space required (in MB)
+    min_required_space_mb: 120  # Minimum disk space required (in MB)
 
   tasks:
     - name: Check available disk space on /
