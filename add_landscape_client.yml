@@ -1,9 +1,9 @@
 ---
-- name: Register client to Landscape server
-  hosts:  "{{ hostname }}"
+- name: Register Ubuntu clients to Landscape server
+  osts: "{{ hostname }}"  # Replace with your host or group name
   become: yes
   become_method: sudo
-   vars:
+  vars:
     landscape_account_name: standalone
     landscape_url: https://10.0.16.90/message-system
     landscape_ping_url: http://10.0.16.90/ping
