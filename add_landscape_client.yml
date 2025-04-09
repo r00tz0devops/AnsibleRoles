@@ -3,33 +3,41 @@
   hosts:  "{{ hostname }}"
   become: yes
   become_method: sudo
-  vars:
+   vars:
     landscape_account_name: standalone
     landscape_url: https://10.0.16.90/message-system
     landscape_ping_url: http://10.0.16.90/ping
 
   tasks:
-    - name: Enable 'universe' repo on Ubuntu only
+    - name: Skip non-Ubuntu systems (info only)
+      debug:
+        msg: "Skipping {{ inventory_hostname }} ({{ ansible_distribution }}) — not Ubuntu."
+      when: ansible_distribution != "Ubuntu"
+
+    - name: Enable 'universe' repo (Ubuntu only)
       apt_repository:
         repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
         state: present
         filename: universe
       when: ansible_distribution == "Ubuntu"
 
-    - name: Update apt cache
+    - name: Update apt cache (Ubuntu only)
       apt:
         update_cache: true
+      when: ansible_distribution == "Ubuntu"
 
-    - name: Ensure landscape-client is installed
+    - name: Install landscape-client (Ubuntu only)
       apt:
         name: landscape-client
         state: present
+      when: ansible_distribution == "Ubuntu"
 
-    - name: Get the hostname
+    - name: Get hostname (Ubuntu only)
       command: hostname
       register: hostname_result
+      when: ansible_distribution == "Ubuntu"
 
-    - name: Register the machine with Landscape
+    - name: Register machine with Landscape (Ubuntu only)
       command: >
         landscape-config
         --computer-title "{{ hostname_result.stdout }}"
@@ -38,9 +46,11 @@
         --ping-url {{ landscape_ping_url }}
       args:
         creates: /etc/landscape/client.conf
+      when: ansible_distribution == "Ubuntu"
 
-    - name: Start landscape-client service
+    - name: Start and enable landscape-client service (Ubuntu only)
       service:
         name: landscape-client
         state: started
         enabled: true
+      when: ansible_distribution == "Ubuntu"
