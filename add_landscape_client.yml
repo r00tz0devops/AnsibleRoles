@@ -1,6 +1,6 @@
 ---
 - name: Register client to Landscape server
-  hosts: "{{ hostname }}"
+  hosts:  "{{ hostname }}"
   become: yes
   become_method: sudo
   vars:
@@ -9,11 +9,20 @@
     landscape_ping_url: http://10.0.16.90/ping
 
   tasks:
+    - name: Enable 'universe' repository
+      apt_repository:
+        repo: "deb http://archive.ubuntu.com/ubuntu {{ ansible_distribution_release }} universe"
+        state: present
+        filename: universe
+
+    - name: Update apt cache
+      apt:
+        update_cache: true
+
     - name: Ensure landscape-client is installed
       apt:
         name: landscape-client
         state: present
-        update_cache: true
 
     - name: Get the hostname
       command: hostname
@@ -34,5 +43,3 @@
         name: landscape-client
         state: started
         enabled: true
-
-
