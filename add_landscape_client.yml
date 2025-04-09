@@ -50,6 +50,7 @@
         --registration-key "{{ registration_key }}"
         --script-users "{{ script_users }}"
         --access-group "{{ access_group }}"
+        --ssl-verify false
       args:
         creates: /etc/landscape/client.conf
       when: ansible_distribution == "Ubuntu"
