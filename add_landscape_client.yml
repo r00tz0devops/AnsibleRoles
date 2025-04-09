@@ -35,33 +35,21 @@
         state: present
       when: ansible_distribution == "Ubuntu"
 
-    - name: Copy internal CA certificate to trusted store (Ubuntu only)
-      copy:
-        src: files/internal-ca.crt
-        dest: /usr/local/share/ca-certificates/internal-ca.crt
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Update CA certificates (Ubuntu only)
-      command: update-ca-certificates
-      when: ansible_distribution == "Ubuntu"
-
-    - name: Generate /etc/landscape/client.conf (Ubuntu only)
-      template:
-        src: landscape-client.conf.j2
-        dest: /etc/landscape/client.conf
+    - name: Get hostname (Ubuntu only)
+      command: hostname
+      register: hostname_result
       when: ansible_distribution == "Ubuntu"
 
     - name: Register machine with Landscape (Ubuntu only)
       command: >
         landscape-config
-        --computer-title "{{ inventory_hostname }}"
+        --computer-title "{{ hostname_result.stdout }}"
         --account-name "{{ landscape_account_name }}"
         --url "{{ landscape_url }}"
         --ping-url "{{ landscape_ping_url }}"
         --registration-key "{{ registration_key }}"
         --script-users "{{ script_users }}"
         --access-group "{{ access_group }}"
-        --ssl-verify false
       args:
         creates: /etc/landscape/client.conf
       when: ansible_distribution == "Ubuntu"
