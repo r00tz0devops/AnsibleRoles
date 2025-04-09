@@ -9,15 +9,24 @@ ubuntulandscape.r00tz0.xyz
 # Per the documentation, Keeper Automator requires a separate cert
 function get_automator_cert() {
 ./acme.sh/acme.sh --issue --dns dns_dnsimple -d \
-UbuntuLandscape.ghgsat.com
+ubuntulandscape.r00tz0.xyz
 
-keeper_certdir="$(eval echo "~${CURRENT_USER}")/.acme.sh/UbuntuLandscape.ghgsat.com"
+keeper_certdir="$(eval echo "~${CURRENT_USER}")/.acme.sh/ubuntulandscape.r00tz0.xyz"
 openssl pkcs12 -export -passout pass: \
         -out ${keeper_certdir}/ubuntulandscape.r00tz0.xyz.pfx \
         -inkey ${keeper_certdir}/ubuntulandscape.r00tz0.xyz.key \
         -in ${keeper_certdir}/fullchain.cer \
         -certfile ${keeper_certdir}/ubuntulandscape.r00tz0.xyz.cer
 }
+
+
+ if [[ -z "${DNSimple_OAUTH_TOKEN}" ]]; then
+     echo "DNSimple_OAUTH_TOKEN is not set, please set it:"
+     read -s DNSimple_OAUTH_TOKEN
+ fi
+ 
+get_internal_cert
+
 
 # function get_analytics_cert() {
 # ./acme.sh/acme.sh --issue --dns dns_dnsimple -d \
@@ -70,13 +79,10 @@ openssl pkcs12 -export -passout pass: \
 # }
 
 # # Main
-# if [[ -z "${DNSimple_OAUTH_TOKEN}" ]]; then
-#     echo "DNSimple_OAUTH_TOKEN is not set, please set it:"
-#     read -s DNSimple_OAUTH_TOKEN
-# fi
+
 
 # Comment or uncomment those depending on what you need
-get_internal_cert
+#get_internal_cert
 #get_automator_cert
 #get_analytics_cert
 #get_networking_cert
