@@ -1,0 +1,38 @@
+---
+- name: Register client to Landscape server
+  hosts: "{{ hostname }}"
+  become: yes
+  become_method: sudo
+  vars:
+    landscape_account_name: standalone
+    landscape_url: https://10.0.16.90/message-system
+    landscape_ping_url: http://10.0.16.90/ping
+
+  tasks:
+    - name: Ensure landscape-client is installed
+      apt:
+        name: landscape-client
+        state: present
+        update_cache: true
+
+    - name: Get the hostname
+      command: hostname
+      register: hostname_result
+
+    - name: Register the machine with Landscape
+      command: >
+        landscape-config
+        --computer-title "{{ hostname_result.stdout }}"
+        --account-name {{ landscape_account_name }}
+        --url {{ landscape_url }}
+        --ping-url {{ landscape_ping_url }}
+      args:
+        creates: /etc/landscape/client.conf  # Prevent re-running if already registered
+
+    - name: Start landscape-client service
+      service:
+        name: landscape-client
+        state: started
+        enabled: true
+
+
